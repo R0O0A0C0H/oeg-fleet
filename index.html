@@ -742,28 +742,13 @@ let filledRows = 0;
 // ============================================================
 async function api(action, params = {}) {
   try {
-    const body = JSON.stringify({ action, ...params });
-    const url = API_URL + '?action=' + encodeURIComponent(action);
-    
-    // Try POST first
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: body
-    });
-    return await res.json();
+    const payload = JSON.stringify({ action, ...params });
+    const url = API_URL + '?payload=' + encodeURIComponent(payload);
+    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+    const text = await res.text();
+    return JSON.parse(text);
   } catch (e) {
-    // Fallback to GET for read operations
-    try {
-      const qs = Object.entries({ action, ...params })
-        .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : v))
-        .join('&');
-      const res = await fetch(API_URL + '?' + qs, { method: 'GET', mode: 'cors' });
-      return await res.json();
-    } catch (e2) {
-      return { success: false, message: 'Network error: ' + e2.message, offline: true };
-    }
+    return { success: false, message: 'Network error: ' + e.message, offline: true };
   }
 }
 
