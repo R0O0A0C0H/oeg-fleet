@@ -458,7 +458,7 @@ textarea{resize:vertical;min-height:70px}
           <div class="card">
             <div class="form-grid">
               <div class="form-group"><label class="form-label">申請日期 <span class="en">Request Date</span> <span class="req">*</span></label><input type="date" id="r-date"></div>
-              <div class="form-group"><label class="form-label">報告人姓名 <span class="en">Reported By</span> <span class="req">*</span></label><input type="text" id="r-reporter" placeholder="中文+英文"></div>
+              <div class="form-group"><label class="form-label">報告人姓名 <span class="en">Reported By</span></label><input type="text" id="r-reporter" readonly></div>
               <div class="form-group"><label class="form-label">哪臺設備有問題 <span class="en">Which Equipment</span> <span class="req">*</span></label><input type="text" id="r-equip"></div>
               <div class="form-group"><label class="form-label">關聯訂購單號 <span class="en">Related Order No.</span></label><input type="text" id="r-orderref" placeholder="選填"></div>
               <div class="form-group form-full"><label class="form-label">設備狀況 <span class="en">Description of Issue</span> <span class="req">*</span></label><textarea id="r-desc"></textarea></div>
@@ -875,6 +875,9 @@ function enterCrewApp() {
   showScreen('crew');
   buildOrderTable();
   loadSettings();
+  // 自動帶入報告人姓名
+  const reporter = document.getElementById('r-reporter');
+  if (reporter) reporter.value = currentUser.nameZh + ' ' + currentUser.nameEn;
 }
 
 async function doRegister() {
@@ -970,6 +973,10 @@ function crewShowPage(name) {
   });
   if (name === 'order-history') loadOrderHistory();
   if (name === 'repair-history') loadRepairHistory();
+  if (name === 'repair-new') {
+    const reporter = document.getElementById('r-reporter');
+    if (reporter && currentUser) reporter.value = currentUser.nameZh + ' ' + currentUser.nameEn;
+  }
 }
 
 // ── Order Table ──────────────────────────────────────────────
@@ -1066,7 +1073,17 @@ async function loadOrderHistory() {
     const approved = d['is_approved'] || 'pending';
     const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
     const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審';
-    html += `<tr><td class="text-mono text-xs">${d['order_no'] || '-'}</td><td>${d['item_name'] || '-'}</td><td>${d['qty'] || '-'} ${d['unit'] || ''}</td><td>${d['submit_date'] ? d['submit_date'].toString().slice(0,10) : '-'}</td><td><span class="badge ${badgeClass}">${badgeText}</span></td><td>${d['status'] || '-'}</td></tr>`;
+    const dateStr = d['submit_date'] ? String(d['submit_date']).slice(0,10) : '-';
+    const status = d['status'] || '-';
+    const statusClass = status === '已到貨' ? 'badge-approved' : status === '已拒絕' ? 'badge-rejected' : status === '待處理' ? 'badge-pending' : 'badge-info';
+    html += `<tr>
+      <td class="text-mono text-xs">${d['order_no'] || '-'}</td>
+      <td>${d['item_name'] || '-'}</td>
+      <td>${d['qty'] || '-'} ${d['unit'] || ''}</td>
+      <td>${dateStr}</td>
+      <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+      <td><span class="badge ${statusClass}">${status}</span></td>
+    </tr>`;
   });
   html += '</tbody></table>';
   el.innerHTML = html;
@@ -1121,9 +1138,23 @@ async function loadRepairHistory() {
   const res = await api('getRepairs', { vesselCode: currentUser.vesselCode });
   if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
   if (!res.data || res.data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">目前沒有報修紀錄</div>'; return; }
-  let html = '<table class="data-table"><thead><tr><th>報修單號</th><th>設備</th><th>報告人</th><th>申請日期</th><th>狀態</th></tr></thead><tbody>';
+  let html = '<table class="data-table"><thead><tr><th>報修單號</th><th>設備</th><th>申請日期</th><th>狀態</th><th>處理進度</th><th>追蹤次數</th><th>最後追蹤</th></tr></thead><tbody>';
   res.data.forEach(d => {
-    html += `<tr><td class="text-mono text-xs">${d['repair_no'] || '-'}</td><td>${d['equipment'] || '-'}</td><td>${d['reporter_zh'] || '-'}</td><td>${d['request_date'] || '-'}</td><td>${d['status'] || '-'}</td></tr>`;
+    const dateStr = d['request_date'] ? String(d['request_date']).slice(0, 10) : '-';
+    const status = d['status'] || '-';
+    const statusClass = status === '已完修' ? 'badge-approved' : status === '待處理' ? 'badge-pending' : 'badge-info';
+    const trackDate = d['track_date'] ? String(d['track_date']).slice(0, 10) : '-';
+    const trackCount = d['track_count'] || 0;
+    const progress = d['progress'] || '-';
+    html += `<tr>
+      <td class="text-mono text-xs">${d['repair_no'] || '-'}</td>
+      <td>${d['equipment'] || '-'}</td>
+      <td>${dateStr}</td>
+      <td><span class="badge ${statusClass}">${status}</span></td>
+      <td>${progress}</td>
+      <td class="text-mono">${trackCount}</td>
+      <td class="text-xs">${trackDate}</td>
+    </tr>`;
   });
   html += '</tbody></table>';
   el.innerHTML = html;
@@ -1420,14 +1451,29 @@ async function loadAllRepairs() {
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">沒有報修單</div>'; return; }
 
   const actionBtns = (settings.repair_action || ['通知廠商','關閉']);
-  let html = '<table class="data-table"><thead><tr><th>報修單號</th><th>船隻</th><th>報告人</th><th>設備</th><th>通知主管</th><th>狀態</th><th>操作</th></tr></thead><tbody>';
+  let html = '<table class="data-table"><thead><tr><th>報修單號</th><th>船隻</th><th>報告人</th><th>設備</th><th>通知主管</th><th>狀態</th><th>處理進度</th><th>追蹤次數</th><th>最後追蹤</th><th>操作</th></tr></thead><tbody>';
   data.forEach(d => {
+    const repairNo = d['repair_no'] || '-';
+    const vesselCode = d['vessel_code'] || '-';
     const statusOpts = (settings.repair_status || []).map(s => `<option ${d['status']===s?'selected':''}>${s}</option>`).join('');
-    const btns = actionBtns.map(a => `<button class="btn btn-xs" onclick="repairAction('${d['vessel_code']}','${d['repair_no']}','${a}')">${a}</button>`).join('');
+    const btns = actionBtns.map(a => `<button class="btn btn-xs" onclick="repairAction('${vesselCode}','${repairNo}','${a}')">${a}</button>`).join('');
     const notified = d['supervisor_notified'] === 'yes' ? '<span class="badge badge-approved">已通知</span>' : '<span class="badge badge-pending">未通知</span>';
-    html += `<tr><td class="text-mono text-xs">${d['repair_no'] || '-'}</td><td>${d['vessel_code'] || '-'}</td><td>${d['reporter_zh'] || '-'}</td><td>${d['equipment'] || '-'}</td><td>${notified}</td>
-      <td><select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateRepairStatus('${d['vessel_code']}','${d['repair_no']}',this.value)">${statusOpts}</select></td>
-      <td><div class="flex gap4">${btns}</div></td></tr>`;
+    const trackDate = d['track_date'] ? String(d['track_date']).slice(0,10) : '-';
+    const trackCount = d['track_count'] || 0;
+    const progress = d['progress'] || '';
+    const safeNo = repairNo.replace(/[^a-zA-Z0-9]/g, '_');
+    html += `<tr>
+      <td class="text-mono text-xs">${repairNo}</td>
+      <td>${vesselCode}</td>
+      <td>${d['reporter_zh'] || '-'}</td>
+      <td>${d['equipment'] || '-'}</td>
+      <td>${notified}</td>
+      <td><select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateRepairStatus('${vesselCode}','${repairNo}',this.value)">${statusOpts}</select></td>
+      <td><div class="flex gap4"><input type="text" id="prog_${safeNo}" value="${progress}" placeholder="填寫進度..." style="font-size:11px;padding:3px 6px;width:160px"><button class="btn btn-xs btn-primary" onclick="updateRepairProgress('${vesselCode}','${repairNo}','prog_${safeNo}')"><i class="ti ti-send"></i></button></div></td>
+      <td class="text-mono">${trackCount}</td>
+      <td class="text-xs">${trackDate}</td>
+      <td><div class="flex gap4">${btns}</div></td>
+    </tr>`;
   });
   html += '</tbody></table>';
   el.innerHTML = html;
@@ -1443,6 +1489,19 @@ async function repairAction(vesselCode, repairNo, action) {
 
 async function updateRepairStatus(vesselCode, repairNo, status) {
   await api('updateRepair', { vesselCode, repairNo, status });
+}
+
+async function updateRepairProgress(vesselCode, repairNo, inputId) {
+  const progress = document.getElementById(inputId)?.value.trim();
+  if (!progress) { alert('請填寫處理進度'); return; }
+  showLoading('更新進度中...');
+  const res = await api('updateRepair', { vesselCode, repairNo, progress });
+  hideLoading();
+  if (res.success) {
+    loadAllRepairs();
+  } else {
+    alert('更新失敗：' + res.message);
+  }
 }
 
 // ── Admin account management ─────────────────────────────────
