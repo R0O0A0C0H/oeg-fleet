@@ -741,15 +741,31 @@ let filledRows = 0;
 // API
 // ============================================================
 async function api(action, params = {}) {
-  try {
-    const payload = JSON.stringify({ action, ...params });
-    const url = API_URL + '?payload=' + encodeURIComponent(payload);
-    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
-    const text = await res.text();
-    return JSON.parse(text);
-  } catch (e) {
-    return { success: false, message: 'Network error: ' + e.message, offline: true };
-  }
+  return new Promise(function(resolve) {
+    try {
+      var payload = JSON.stringify({ action: action, ...params });
+      var url = API_URL + '?payload=' + encodeURIComponent(payload);
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      xhr.onload = function() {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch(e) {
+          resolve({ success: false, message: 'Parse error: ' + e.message });
+        }
+      };
+      xhr.onerror = function() {
+        resolve({ success: false, message: 'Network error', offline: true });
+      };
+      xhr.ontimeout = function() {
+        resolve({ success: false, message: 'Request timeout', offline: true });
+      };
+      xhr.timeout = 30000;
+      xhr.send();
+    } catch(e) {
+      resolve({ success: false, message: 'Error: ' + e.message, offline: true });
+    }
+  });
 }
 
 // ============================================================
