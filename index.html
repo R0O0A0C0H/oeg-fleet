@@ -745,23 +745,26 @@ async function api(action, params = {}) {
     try {
       var payload = JSON.stringify({ action: action, ...params });
       var url = API_URL + '?payload=' + encodeURIComponent(payload);
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', url, true);
-      xhr.onload = function() {
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch(e) {
-          resolve({ success: false, message: 'Parse error: ' + e.message });
-        }
+      var script = document.createElement('script');
+      var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*9999);
+      window[cbName] = function(data) {
+        delete window[cbName];
+        document.head.removeChild(script);
+        resolve(data);
       };
-      xhr.onerror = function() {
+      script.onerror = function() {
+        delete window[cbName];
+        document.head.removeChild(script);
         resolve({ success: false, message: 'Network error', offline: true });
       };
-      xhr.ontimeout = function() {
-        resolve({ success: false, message: 'Request timeout', offline: true });
-      };
-      xhr.timeout = 30000;
-      xhr.send();
+      script.src = url + '&callback=' + cbName;
+      document.head.appendChild(script);
+      setTimeout(function() {
+        if (window[cbName]) {
+          delete window[cbName];
+          resolve({ success: false, message: 'Request timeout', offline: true });
+        }
+      }, 60000);
     } catch(e) {
       resolve({ success: false, message: 'Error: ' + e.message, offline: true });
     }
