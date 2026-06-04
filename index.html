@@ -742,14 +742,28 @@ let filledRows = 0;
 // ============================================================
 async function api(action, params = {}) {
   try {
+    const body = JSON.stringify({ action, ...params });
+    const url = API_URL + '?action=' + encodeURIComponent(action);
+    
+    // Try POST first
     const res = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, ...params })
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: body
     });
     return await res.json();
   } catch (e) {
-    return { success: false, message: 'Network error: ' + e.message, offline: true };
+    // Fallback to GET for read operations
+    try {
+      const qs = Object.entries({ action, ...params })
+        .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : v))
+        .join('&');
+      const res = await fetch(API_URL + '?' + qs, { method: 'GET', mode: 'cors' });
+      return await res.json();
+    } catch (e2) {
+      return { success: false, message: 'Network error: ' + e2.message, offline: true };
+    }
   }
 }
 
