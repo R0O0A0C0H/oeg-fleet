@@ -1697,14 +1697,19 @@ async function submitAllApprovals() {
   if (count === 0) { alert('沒有待送出的審核結果'); return; }
   showLoading('送出中...');
   const items = Object.values(pendingApprovals);
-  // 按船隻分組批次送出
-  const byVessel = {};
+  // 按訂單號分組批次送出（一張訂單一封信）
+  const byOrder = {};
   items.forEach(p => {
-    if (!byVessel[p.vesselCode]) byVessel[p.vesselCode] = [];
-    byVessel[p.vesselCode].push(p);
+    // itemNo 格式 VLK-20260605-001-01，取前三段為訂單號
+    const parts = p.itemNo.split('-');
+    const orderNo = parts.slice(0, 4).join('-');
+    const groupKey = p.vesselCode + '_' + orderNo;
+    if (!byOrder[groupKey]) byOrder[groupKey] = { vesselCode: p.vesselCode, items: [] };
+    byOrder[groupKey].items.push(p);
   });
-  for (const vesselCode of Object.keys(byVessel)) {
-    await api('batchUpdateOrder', { vesselCode, items: byVessel[vesselCode] });
+  for (const key of Object.keys(byOrder)) {
+    const group = byOrder[key];
+    await api('batchUpdateOrder', { vesselCode: group.vesselCode, items: group.items });
   }
   pendingApprovals = {};
   hideLoading();
