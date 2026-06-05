@@ -1052,25 +1052,68 @@ async function loadOrderHistory() {
   const res = await api('getOrders', { vesselCode: currentUser.vesselCode });
   if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
   if (!res.data || res.data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">目前沒有訂購紀錄</div>'; return; }
-  let html = '<table class="data-table"><thead><tr><th>項目號</th><th>品名</th><th>數量</th><th>申請日期</th><th>是否批准</th><th>狀態</th></tr></thead><tbody>';
+
+  // 按單號分組
+  const orders = {};
   res.data.forEach(d => {
-    const approved = d['is_approved'] || 'pending';
-    const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
-    const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審';
-    const dateStr = d['submit_date'] ? String(d['submit_date']).slice(0,10) : '-';
-    const status = d['status'] || '-';
-    const statusClass = status === '已到貨' ? 'badge-approved' : status === '已拒絕' ? 'badge-rejected' : status === '待處理' ? 'badge-pending' : 'badge-info';
-    html += `<tr>
-      <td class="text-mono text-xs">${d['order_no'] || '-'}</td>
-      <td>${d['item_name'] || '-'}</td>
-      <td>${d['qty'] || '-'} ${d['unit'] || ''}</td>
-      <td>${dateStr}</td>
-      <td><span class="badge ${badgeClass}">${badgeText}</span></td>
-      <td><span class="badge ${statusClass}">${status}</span></td>
-    </tr>`;
+    const oNo = d['order_no'] || '-';
+    if (!orders[oNo]) {
+      orders[oNo] = { orderNo: oNo, date: d['submit_date'], items: [] };
+    }
+    orders[oNo].items.push(d);
   });
-  html += '</tbody></table>';
+
+  let html = '';
+  Object.values(orders).forEach((order, oi) => {
+    const pendingCount = order.items.filter(i => i['is_approved'] === 'pending').length;
+    const approvedCount = order.items.filter(i => i['is_approved'] === 'approved').length;
+    const rejectedCount = order.items.filter(i => i['is_approved'] === 'rejected').length;
+    let orderBadge, orderBadgeClass;
+    if (pendingCount > 0) { orderBadge = '待審核'; orderBadgeClass = 'badge-pending'; }
+    else if (approvedCount > 0 && rejectedCount > 0) { orderBadge = '部分批准'; orderBadgeClass = 'badge-info'; }
+    else if (approvedCount > 0) { orderBadge = '已批准'; orderBadgeClass = 'badge-approved'; }
+    else { orderBadge = '已拒絕'; orderBadgeClass = 'badge-rejected'; }
+
+    const dateStr = order.date ? String(order.date).slice(0,10) : '-';
+    html += `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg3);cursor:pointer;border-bottom:0.5px solid var(--border)" onclick="toggleCrewOrder('co${oi}','cchev${oi}')">
+        <span style="font-family:var(--font-mono);font-size:13px;font-weight:500">${order.orderNo}</span>
+        <span style="font-size:12px;color:var(--text2)">${dateStr} · ${order.items.length} 項</span>
+        <span class="badge ${orderBadgeClass}">${orderBadge}</span>
+        <i class="ti ti-chevron-down" style="margin-left:auto;color:var(--text3);transition:transform 0.2s" id="cchev${oi}" aria-hidden="true"></i>
+      </div>
+      <div id="co${oi}">
+        <table class="data-table">
+          <thead><tr><th>#</th><th>品名</th><th>數量</th><th>批准狀態</th><th>目前狀態</th></tr></thead>
+          <tbody>`;
+
+    order.items.forEach((d, ii) => {
+      const seqNum = '#' + String(ii+1).padStart(2,'0');
+      const approved = d['is_approved'] || 'pending';
+      const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
+      const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審';
+      const status = d['status'] || '-';
+      const statusClass = status === '已到貨' ? 'badge-approved' : status === '已拒絕' ? 'badge-rejected' : status === '待處理' ? 'badge-pending' : 'badge-info';
+      html += `<tr>
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">${seqNum}</td>
+        <td>${d['item_name'] || '-'}</td>
+        <td>${d['qty'] || '-'} ${d['unit'] || ''}</td>
+        <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+        <td><span class="badge ${statusClass}">${status}</span></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  });
+
   el.innerHTML = html;
+}
+
+function toggleCrewOrder(id, chevId) {
+  const el = document.getElementById(id);
+  const chev = document.getElementById(chevId);
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (chev) chev.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
 }
 
 // ── Repair Form ──────────────────────────────────────────────
@@ -1385,7 +1428,7 @@ async function loadAllOrders() {
   const filterVessel = document.getElementById('filter-order-vessel')?.value;
   const filterStatus = document.getElementById('filter-order-status')?.value;
   if (filterVessel) data = data.filter(d => d['vessel_code'] === filterVessel);
-  if (filterStatus) data = data.filter(d => d['status'] === filterStatus);
+  if (filterStatus) data = data.filter(d => d['is_approved'] === filterStatus);
 
   document.getElementById('stat-order-pending').textContent = data.filter(d => d['is_approved'] === 'pending').length;
   document.getElementById('stat-order-approved').textContent = data.filter(d => d['is_approved'] === 'approved').length;
@@ -1394,17 +1437,91 @@ async function loadAllOrders() {
 
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">沒有訂購單</div>'; return; }
 
-  const actionBtns = (settings.order_action || ['批准','拒絕']);
-  let html = '<table class="data-table"><thead><tr><th>項目號</th><th>船隻</th><th>申請人</th><th>品名</th><th>數量</th><th>申請日期</th><th>狀態</th><th>操作</th></tr></thead><tbody>';
+  // 按單號分組
+  const orders = {};
   data.forEach(d => {
-    const statusOpts = (settings.order_status || []).map(s => `<option ${d['status']===s?'selected':''}>${s}</option>`).join('');
-    const btns = actionBtns.map(a => `<button class="btn btn-xs" onclick="orderAction('${d['vessel_code']}','${d['order_no']}','${a}')">${a}</button>`).join('');
-    html += `<tr><td class="text-mono text-xs">${d['order_no'] || '-'}</td><td>${d['vessel_code'] || '-'}</td><td>${d['applicant_zh'] || '-'}</td><td>${d['item_name'] || '-'}</td><td>${d['qty'] || '-'} ${d['unit'] || ''}</td><td>${d['submit_date'] ? d['submit_date'].toString().slice(0,10) : '-'}</td>
-      <td><select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateOrderStatus('${d['vessel_code']}','${d['order_no']}',this.value)">${statusOpts}</select></td>
-      <td><div class="flex gap4">${btns}</div></td></tr>`;
+    const oNo = d['order_no'] || d['item_no'] || '-';
+    if (!orders[oNo]) {
+      orders[oNo] = { orderNo: oNo, vessel: d['vessel_code'], applicant: d['applicant_zh'], date: d['submit_date'], items: [] };
+    }
+    orders[oNo].items.push(d);
   });
-  html += '</tbody></table>';
+
+  const actionBtns = settings.order_action || ['批准','拒絕'];
+  let html = '';
+  Object.values(orders).forEach((order, oi) => {
+    const pendingCount = order.items.filter(i => i['is_approved'] === 'pending').length;
+    const approvedCount = order.items.filter(i => i['is_approved'] === 'approved').length;
+    const rejectedCount = order.items.filter(i => i['is_approved'] === 'rejected').length;
+    let orderBadge, orderBadgeClass;
+    if (pendingCount > 0) { orderBadge = '待審核'; orderBadgeClass = 'badge-pending'; }
+    else if (approvedCount > 0 && rejectedCount > 0) { orderBadge = '部分批准'; orderBadgeClass = 'badge-info'; }
+    else if (approvedCount > 0) { orderBadge = '已批准'; orderBadgeClass = 'badge-approved'; }
+    else { orderBadge = '已拒絕'; orderBadgeClass = 'badge-rejected'; }
+
+    const dateStr = order.date ? String(order.date).slice(0,10) : '-';
+    html += `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg3);cursor:pointer;border-bottom:0.5px solid var(--border)" onclick="toggleOrderGroup('og${oi}')">
+        <span style="font-family:var(--font-mono);font-size:13px;font-weight:500">${order.orderNo}</span>
+        <span style="font-size:12px;color:var(--text2)">${order.vessel} · ${order.applicant} · ${dateStr} · ${order.items.length} 項</span>
+        <span class="badge ${orderBadgeClass}" id="obadge-${oi}">${orderBadge}</span>
+        <i class="ti ti-chevron-down" style="margin-left:auto;color:var(--text3);transition:transform 0.2s" id="ochev-${oi}" aria-hidden="true"></i>
+      </div>
+      <div id="og${oi}" style="display:block">
+        <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr>
+            <th>#</th><th>品名</th><th>料號</th><th>數量</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>目前狀態</th><th>操作</th>
+          </tr></thead>
+          <tbody>`;
+
+    order.items.forEach((d, ii) => {
+      const itemNo = d['item_no'] || d['order_no'];
+      const seqNum = '#' + String(ii+1).padStart(2,'0');
+      const approved = d['is_approved'] || 'pending';
+      const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
+      const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審核';
+      const statusOpts = (settings.order_status || []).map(s => `<option ${d['status']===s?'selected':''}>${s}</option>`).join('');
+      const showBtns = approved === 'pending';
+      const btns = showBtns ? actionBtns.map(a =>
+        `<button class="btn btn-xs ${a==='批准'?'btn-success':''}" onclick="orderItemAction('${d['vessel_code']}','${itemNo}','${a}',${oi})">${a}</button>`
+      ).join('') : '';
+
+      html += `<tr id="orow-${oi}-${ii}">
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">${seqNum}</td>
+        <td>${d['item_name'] || '-'}</td>
+        <td style="font-size:11px">${d['part_no'] || '-'}</td>
+        <td>${d['qty'] || '-'} ${d['unit'] || ''}</td>
+        <td style="font-size:11px">${d['purpose'] || '-'}</td>
+        <td style="font-size:11px">${d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-'}</td>
+        <td><span class="badge ${badgeClass}" id="ibadge-${oi}-${ii}">${badgeText}</span></td>
+        <td>${approved !== 'rejected' ? `<select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateOrderStatus('${d['vessel_code']}','${itemNo}',this.value)">${statusOpts}</select>` : '—'}</td>
+        <td><div class="flex gap4" id="ibtn-${oi}-${ii}">${btns}</div></td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div></div></div>`;
+  });
+
   el.innerHTML = html;
+}
+
+function toggleOrderGroup(id) {
+  const el = document.getElementById(id);
+  const idx = id.replace('og','');
+  const chev = document.getElementById('ochev-' + idx);
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (chev) chev.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+}
+
+async function orderItemAction(vesselCode, itemNo, action, orderIdx) {
+  const isApproved = action === '批准' ? 'approved' : 'rejected';
+  const status = action === '批准' ? '備料中' : '已拒絕';
+  showLoading('更新中...');
+  await api('updateOrder', { vesselCode, itemNo, isApproved, status, approvedBy: currentAdmin?.accountId });
+  hideLoading();
+  loadAllOrders();
 }
 
 async function orderAction(vesselCode, orderNo, action) {
