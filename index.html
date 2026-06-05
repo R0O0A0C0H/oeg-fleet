@@ -1487,10 +1487,9 @@ async function loadAllOrders() {
       const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
       const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審核';
       const statusOpts = (settings.order_status || []).map(s => `<option ${d['status']===s?'selected':''}>${s}</option>`).join('');
-      const showBtns = approved === 'pending';
-      const btns = showBtns ? actionBtns.map(a =>
-        `<button class="btn btn-xs ${a==='批准'?'btn-success':''}" onclick="orderItemAction('${d['vessel_code']}','${itemNo}','${a}',${oi})">${a}</button>`
-      ).join('') : '';
+      const btns = actionBtns.map(a =>
+        `<button class="btn btn-xs ${a==='批准'?'btn-success':'btn-danger'}" onclick="orderItemAction('${d['vessel_code']}','${itemNo}','${a}',${oi},${ii})">${a}</button>`
+      ).join('');
 
       html += `<tr id="orow-${oi}-${ii}">
         <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">${seqNum}</td>
@@ -1520,25 +1519,22 @@ function toggleOrderGroup(id) {
   if (chev) chev.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
 }
 
-function orderItemAction(vesselCode, itemNo, action, orderIdx) {
+function orderItemAction(vesselCode, itemNo, action, orderIdx, ii) {
   const isApproved = action === '批准' ? 'approved' : 'rejected';
   const status = action === '批准' ? '備料中' : '已拒絕';
 
   // 記錄到暫存清單
   pendingApprovals[itemNo] = { vesselCode, itemNo, isApproved, status, approvedBy: currentAdmin?.accountId };
 
-  // 找到對應的列更新畫面
-  // 找出目前所有訂單群組裡這個 itemNo 的位置
-  const allRows = document.querySelectorAll('[id^="orow-"]');
-  allRows.forEach(row => {
-    const btn = row.querySelector(`[onclick*="'${itemNo}'"]`);
-    if (!btn) return;
+  // 更新該列畫面
+  const rowId = 'orow-' + orderIdx + '-' + ii;
+  const row = document.getElementById(rowId);
+  if (row) {
     const cells = row.cells;
-    if (!cells || cells.length < 8) return;
-    // 更新批准狀態 badge
     const badgeCell = cells[6];
     const statusCell = cells[7];
     const btnCell = cells[8];
+
     if (isApproved === 'approved') {
       badgeCell.innerHTML = '<span class="badge badge-approved">批准</span>';
       statusCell.innerHTML = '<select style="font-size:11px;padding:3px 6px;width:90px"><option selected>備料中</option></select>';
@@ -1546,14 +1542,18 @@ function orderItemAction(vesselCode, itemNo, action, orderIdx) {
       badgeCell.innerHTML = '<span class="badge badge-rejected">拒絕</span>';
       statusCell.innerHTML = '—';
     }
-    btnCell.innerHTML = '';
-  });
+
+    // 兩個按鈕都保留，隨時可切換
+    btnCell.innerHTML = `
+      <button class="btn btn-xs btn-success" onclick="orderItemAction('${vesselCode}','${itemNo}','批准',${orderIdx},${ii})">批准</button>
+      <button class="btn btn-xs btn-danger" onclick="orderItemAction('${vesselCode}','${itemNo}','拒絕',${orderIdx},${ii})">拒絕</button>`;
+  }
 
   // 顯示送出按鈕數量提示
   const count = Object.keys(pendingApprovals).length;
   const submitBtn = document.getElementById('submit-approvals-btn');
   if (submitBtn) {
-    submitBtn.textContent = '送出審核結果（' + count + '）';
+    submitBtn.innerHTML = '<i class="ti ti-check"></i>送出審核結果（' + count + '）';
     submitBtn.style.display = 'inline-flex';
   }
 }
