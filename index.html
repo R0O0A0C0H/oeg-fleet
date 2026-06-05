@@ -1111,7 +1111,12 @@ async function submitOrder() {
 }
 
 // ── Month Tab Helper ─────────────────────────────────────────────────
-function buildMonthTabs(data, dateField, containerId, activeMonth, onSelect) {
+function switchOrderMonth(m) { _allOrdersMonth = m; loadAllOrders(m); }
+function switchRepairMonth(m) { _allRepairsMonth = m; loadAllRepairs(m); }
+function switchOrderHistoryMonth(m) { _orderHistoryMonth = m; renderOrderHistory(); }
+function switchRepairHistoryMonth(m) { _repairHistoryMonth = m; renderRepairHistory(); }
+
+function buildMonthTabs(data, dateField, containerId, activeMonth, callbackName) {
   const months = {};
   data.forEach(d => {
     const raw = d[dateField] ? String(d[dateField]).slice(0, 7) : null;
@@ -1123,7 +1128,7 @@ function buildMonthTabs(data, dateField, containerId, activeMonth, onSelect) {
   const el = document.getElementById(containerId);
   if (!el) return selected;
   el.innerHTML = sorted.map(m =>
-    `<button class="month-tab ${m === selected ? 'active' : ''}" onclick="(${onSelect.toString()})('${m}')">${m}</button>`
+    `<button class="month-tab ${m === selected ? 'active' : ''}" onclick="${callbackName}('${m}')">${m}</button>`
   ).join('');
   return selected;
 }
@@ -1142,7 +1147,7 @@ async function loadOrderHistory(month) {
   if (_orderHistoryData.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">目前沒有訂購紀錄</div>'; return; }
 
   _orderHistoryMonth = buildMonthTabs(_orderHistoryData, 'submit_date', 'order-history-tabs',
-    month || _orderHistoryMonth, m => { _orderHistoryMonth = m; renderOrderHistory(); });
+    month || _orderHistoryMonth, 'switchOrderHistoryMonth');
   renderOrderHistory();
 }
 
@@ -1276,7 +1281,7 @@ async function loadRepairHistory(month) {
   if (_repairHistoryData.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">目前沒有報修紀錄</div>'; return; }
 
   _repairHistoryMonth = buildMonthTabs(_repairHistoryData, 'request_date', 'repair-history-tabs',
-    month || _repairHistoryMonth, m => { _repairHistoryMonth = m; renderRepairHistory(); });
+    month || _repairHistoryMonth, 'switchRepairHistoryMonth');
   renderRepairHistory();
 }
 
@@ -1562,7 +1567,7 @@ async function loadAllOrders(month) {
   if (filterStatus) data = data.filter(d => d['is_approved'] === filterStatus);
 
   _allOrdersMonth = buildMonthTabs(data, 'submit_date', 'admin-order-tabs',
-    month || _allOrdersMonth, m => { _allOrdersMonth = m; renderAllOrders(); });
+    month || _allOrdersMonth, 'switchOrderMonth');
   data = data.filter(d => {
     const m = d['submit_date'] ? String(d['submit_date']).slice(0, 7) : '';
     return m === _allOrdersMonth;
@@ -1835,7 +1840,7 @@ async function loadAllRepairs(month) {
   if (filterStatus) data = data.filter(d => d['status'] === filterStatus);
 
   _allRepairsMonth = buildMonthTabs(data, 'submit_date', 'admin-repair-tabs',
-    month || _allRepairsMonth, m => { _allRepairsMonth = m; loadAllRepairs(m); });
+    month || _allRepairsMonth, 'switchRepairMonth');
   data = data.filter(d => {
     const m = d['submit_date'] ? String(d['submit_date']).slice(0, 7) : '';
     return m === _allRepairsMonth;
