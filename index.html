@@ -1155,7 +1155,7 @@ async function loadOrderHistory() {
         <td>${d['qty'] || '-'} ${d['unit'] || ''}</td>
         <td><span class="badge ${badgeClass}">${badgeText}</span></td>
         <td><span class="badge ${statusClass}">${status}</span></td>
-        <td style="white-space:pre-line;font-size:11px;max-width:200px;color:var(--text2)">${progress || '-'}</td>
+        <td><div style="width:200px;max-height:80px;overflow-y:auto;white-space:pre-wrap;font-size:11px;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border);border-radius:4px;padding:4px 6px;line-height:1.6">${progress || '-'}</div></td>
       </tr>`;
     });
     html += `</tbody></table></div></div>`;
@@ -1234,7 +1234,7 @@ async function loadRepairHistory() {
       <td>${d['equipment'] || '-'}</td>
       <td>${dateStr}</td>
       <td><span class="badge ${statusClass}">${status}</span></td>
-      <td style="white-space:pre-line;font-size:11px;max-width:200px">${progress}</td>
+      <td><div style="width:200px;max-height:80px;overflow-y:auto;white-space:pre-wrap;font-size:11px;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border);border-radius:4px;padding:4px 6px;line-height:1.6">${progress || '-'}</div></td>
       <td class="text-mono">${trackCount}</td>
       <td class="text-xs">${trackDate}</td>
     </tr>`;
