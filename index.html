@@ -1696,9 +1696,15 @@ async function submitAllApprovals() {
   const count = Object.keys(pendingApprovals).length;
   if (count === 0) { alert('沒有待送出的審核結果'); return; }
   showLoading('送出中...');
-  for (const key of Object.keys(pendingApprovals)) {
-    const p = pendingApprovals[key];
-    await api('updateOrder', { vesselCode: p.vesselCode, itemNo: p.itemNo, isApproved: p.isApproved, status: p.status, rejectReason: p.rejectReason, approvedBy: p.approvedBy });
+  const items = Object.values(pendingApprovals);
+  // 按船隻分組批次送出
+  const byVessel = {};
+  items.forEach(p => {
+    if (!byVessel[p.vesselCode]) byVessel[p.vesselCode] = [];
+    byVessel[p.vesselCode].push(p);
+  });
+  for (const vesselCode of Object.keys(byVessel)) {
+    await api('batchUpdateOrder', { vesselCode, items: byVessel[vesselCode] });
   }
   pendingApprovals = {};
   hideLoading();
