@@ -1138,7 +1138,7 @@ async function loadOrderHistory() {
       </div>
       <div id="co${oi}">
         <table class="data-table">
-          <thead><tr><th>#</th><th>品名</th><th>數量</th><th>批准狀態</th><th>目前狀態</th></tr></thead>
+          <thead><tr><th>#</th><th>品名</th><th>數量</th><th>批准狀態</th><th>目前狀態</th><th>處理進度</th></tr></thead>
           <tbody>`;
 
     order.items.forEach((d, ii) => {
@@ -1148,12 +1148,14 @@ async function loadOrderHistory() {
       const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審';
       const status = d['status'] || '-';
       const statusClass = status === '已到貨' ? 'badge-approved' : status === '已拒絕' ? 'badge-rejected' : status === '待處理' ? 'badge-pending' : 'badge-info';
+      const progress = d['progress'] || '';
       html += `<tr>
         <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">${seqNum}</td>
         <td>${d['item_name'] || '-'}</td>
         <td>${d['qty'] || '-'} ${d['unit'] || ''}</td>
         <td><span class="badge ${badgeClass}">${badgeText}</span></td>
         <td><span class="badge ${statusClass}">${status}</span></td>
+        <td style="white-space:pre-line;font-size:11px;max-width:200px;color:var(--text2)">${progress || '-'}</td>
       </tr>`;
     });
     html += `</tbody></table></div></div>`;
@@ -1232,7 +1234,7 @@ async function loadRepairHistory() {
       <td>${d['equipment'] || '-'}</td>
       <td>${dateStr}</td>
       <td><span class="badge ${statusClass}">${status}</span></td>
-      <td>${progress}</td>
+      <td style="white-space:pre-line;font-size:11px;max-width:200px">${progress}</td>
       <td class="text-mono">${trackCount}</td>
       <td class="text-xs">${trackDate}</td>
     </tr>`;
