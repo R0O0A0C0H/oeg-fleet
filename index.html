@@ -686,6 +686,23 @@ textarea{resize:vertical;min-height:70px}
   </div>
 </div>
 
+<!-- Reply Repair Modal -->
+<div class="modal-overlay" id="modal-reply-repair">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-message-reply"></i> 回覆案件</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px" id="modal-reply-repairno"></div>
+    <div class="form-group">
+      <label class="form-label">回覆內容（將寄信通知船端並更新處理進度）</label>
+      <textarea id="modal-reply-content" placeholder="請輸入處理進度或回覆說明..." style="min-height:100px"></textarea>
+    </div>
+    <div class="err-msg" id="modal-reply-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-reply-repair')">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="submitReplyRepair()"><i class="ti ti-send"></i>送出回覆</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modals -->
 <div class="modal-overlay" id="modal-add-admin">
   <div class="modal">
@@ -1629,35 +1646,54 @@ async function loadAllRepairs() {
   el.innerHTML = html;
 }
 
-async function repairAction(vesselCode, repairNo, action) {
+let _replyVesselCode = '';
+let _replyRepairNo = '';
+
+function repairAction(vesselCode, repairNo, action) {
   if (action === '回覆案件') {
-    const progress = prompt('請輸入回覆內容（將寄信通知船端並更新處理進度）：');
-    if (!progress || !progress.trim()) return;
-    showLoading('寄送回覆中...');
-    const res = await api('replyRepair', { vesselCode, repairNo, progress: progress.trim() });
-    hideLoading();
-    if (res.success) {
-      alert('回覆已送出，通知信已寄至船端信箱。');
-      loadAllRepairs();
-    } else {
-      alert('送出失敗：' + res.message);
-    }
+    _replyVesselCode = vesselCode;
+    _replyRepairNo = repairNo;
+    document.getElementById('modal-reply-repairno').textContent = '報修單號：' + repairNo;
+    document.getElementById('modal-reply-content').value = '';
+    document.getElementById('modal-reply-err').textContent = '';
+    openModal('modal-reply-repair');
+    setTimeout(() => document.getElementById('modal-reply-content').focus(), 100);
   } else if (action === '結案') {
-    if (!confirm('確定要結案此報修單？結案後將寄信通知船端。')) return;
+    if (!confirm('確定要結案此報修單？\n結案後將寄信通知船端。')) return;
     showLoading('結案中...');
-    const res = await api('closeRepair', { vesselCode, repairNo });
-    hideLoading();
-    if (res.success) {
-      alert('案件已結案，通知信已寄至船端信箱。');
-      loadAllRepairs();
-    } else {
-      alert('結案失敗：' + res.message);
-    }
+    api('closeRepair', { vesselCode, repairNo }).then(res => {
+      hideLoading();
+      if (res.success) {
+        alert('案件已結案，通知信已寄至船端信箱。');
+        loadAllRepairs();
+      } else {
+        alert('結案失敗：' + res.message);
+      }
+    });
   } else {
     showLoading('更新中...');
-    await api('updateRepair', { vesselCode, repairNo });
-    hideLoading();
+    api('updateRepair', { vesselCode, repairNo }).then(() => {
+      hideLoading();
+      loadAllRepairs();
+    });
+  }
+}
+
+async function submitReplyRepair() {
+  const progress = document.getElementById('modal-reply-content').value.trim();
+  if (!progress) {
+    document.getElementById('modal-reply-err').textContent = '請填寫回覆內容';
+    return;
+  }
+  closeModal('modal-reply-repair');
+  showLoading('寄送回覆中...');
+  const res = await api('replyRepair', { vesselCode: _replyVesselCode, repairNo: _replyRepairNo, progress });
+  hideLoading();
+  if (res.success) {
+    alert('回覆已送出，通知信已寄至船端信箱。');
     loadAllRepairs();
+  } else {
+    alert('送出失敗：' + res.message);
   }
 }
 
