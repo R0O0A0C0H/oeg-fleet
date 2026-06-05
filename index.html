@@ -1654,10 +1654,23 @@ function repairAction(vesselCode, repairNo, action) {
     _replyVesselCode = vesselCode;
     _replyRepairNo = repairNo;
     document.getElementById('modal-reply-repairno').textContent = '報修單號：' + repairNo;
-    document.getElementById('modal-reply-content').value = '';
+    // 預填舊的處理進度 + 自動加上當前日期時間前綴
+    const safeNo = repairNo.replace(/[^a-zA-Z0-9]/g, '_');
+    const oldProgress = document.getElementById('prog_' + safeNo)?.value || '';
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const datePrefix = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) +
+      ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ' ';
+    const newContent = oldProgress ? (oldProgress + '\n' + datePrefix) : datePrefix;
+    document.getElementById('modal-reply-content').value = newContent;
     document.getElementById('modal-reply-err').textContent = '';
     openModal('modal-reply-repair');
-    setTimeout(() => document.getElementById('modal-reply-content').focus(), 100);
+    // 游標移到最後
+    setTimeout(() => {
+      const ta = document.getElementById('modal-reply-content');
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }, 100);
   } else if (action === '結案') {
     if (!confirm('確定要結案此報修單？\n結案後將寄信通知船端。')) return;
     showLoading('結案中...');
