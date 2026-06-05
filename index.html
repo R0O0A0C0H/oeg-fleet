@@ -717,7 +717,9 @@ textarea{resize:vertical;min-height:70px}
 // ============================================================
 // CONFIG
 // ============================================================
-const API_URL = 'https://script.google.com/macros/s/AKfycby9cWe_I8XGopIFL_GuMtMeQkFwocGKQB6qEWBE1cb5YeA0qI1opXpFSSF4abMjKbwN8w/exec';
+// Railway proxy URL - 避免 Google cookie 干擾
+const API_URL = 'https://oeg-fleet-proxy.roach1104.workers.dev';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycby9cWe_I8XGopIFL_GuMtMeQkFwocGKQB6qEWBE1cb5YeA0qI1opXpFSSF4abMjKbwN8w/exec';
 
 const VESSELS = {
   VLK: { zh: '威可利', en: 'Valkyrie' },
@@ -741,34 +743,16 @@ let filledRows = 0;
 // API
 // ============================================================
 async function api(action, params = {}) {
-  return new Promise(function(resolve) {
-    try {
-      var payload = JSON.stringify({ action: action, ...params });
-      var url = API_URL + '?payload=' + encodeURIComponent(payload);
-      var script = document.createElement('script');
-      var cbName = 'cb_' + Date.now() + '_' + Math.floor(Math.random()*9999);
-      window[cbName] = function(data) {
-        delete window[cbName];
-        document.head.removeChild(script);
-        resolve(data);
-      };
-      script.onerror = function() {
-        delete window[cbName];
-        document.head.removeChild(script);
-        resolve({ success: false, message: 'Network error', offline: true });
-      };
-      script.src = url + '&callback=' + cbName;
-      document.head.appendChild(script);
-      setTimeout(function() {
-        if (window[cbName]) {
-          delete window[cbName];
-          resolve({ success: false, message: 'Request timeout', offline: true });
-        }
-      }, 60000);
-    } catch(e) {
-      resolve({ success: false, message: 'Error: ' + e.message, offline: true });
-    }
-  });
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, ...params })
+    });
+    return await res.json();
+  } catch(e) {
+    return { success: false, message: 'Network error: ' + e.message, offline: true };
+  }
 }
 
 // ============================================================
