@@ -93,6 +93,7 @@ input,select,textarea{font-size:13px;padding:8px 10px;border-radius:var(--radius
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
 input[readonly]{background:var(--bg);color:var(--text2);cursor:default}
 textarea{resize:vertical;min-height:70px}
+textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:11px!important;padding:3px 6px!important;white-space:pre-wrap}
 .radio-group{display:flex;flex-wrap:wrap;gap:10px;padding:4px 0}
 .radio-group label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--text)}
 .radio-group input[type=radio]{width:auto}
@@ -1623,8 +1624,8 @@ async function loadAllRepairs() {
     const repairNo = d['repair_no'] || '-';
     const vesselCode = d['vessel_code'] || '-';
     const statusOpts = (settings.repair_status || []).map(s => `<option ${d['status']===s?'selected':''}>${s}</option>`).join('');
-    const escapedProgress = (d['progress'] || '').replace(/'/g, "\'").replace(/\n/g, '\\n');
-    const btns = actionBtns.map(a => `<button class="btn btn-xs" onclick="repairAction('${vesselCode}','${repairNo}','${a}','${escapedProgress}')">${a}</button>`).join('');
+    const escapedProgress = encodeURIComponent(d['progress'] || '');
+    const btns = actionBtns.map(a => `<button class="btn btn-xs" onclick="repairAction('${vesselCode}','${repairNo}','${a}',decodeURIComponent('${escapedProgress}'))">${a}</button>`).join('');
     const notified = d['supervisor_notified'] === 'yes' ? '<span class="badge badge-approved">已通知</span>' : '<span class="badge badge-pending">未通知</span>';
     const trackDate = d['track_date'] ? String(d['track_date']).slice(0,10) : '-';
     const trackCount = d['track_count'] || 0;
@@ -1637,7 +1638,7 @@ async function loadAllRepairs() {
       <td>${d['equipment'] || '-'}</td>
       <td>${notified}</td>
       <td><select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateRepairStatus('${vesselCode}','${repairNo}',this.value)">${statusOpts}</select></td>
-      <td><div style="display:flex;gap:4px;align-items:flex-start"><textarea id="prog_${safeNo}" placeholder="填寫進度..." style="font-size:11px;padding:3px 6px;width:200px;min-height:40px;resize:vertical;white-space:pre-wrap">${progress}</textarea><button class="btn btn-xs btn-primary" onclick="updateRepairProgress('${vesselCode}','${repairNo}','prog_${safeNo}')"><i class="ti ti-send"></i></button></div></td>
+      <td><div style="display:flex;gap:4px;align-items:flex-start"><textarea id="prog_${safeNo}" class="inline-prog" placeholder="填寫進度...">${progress}</textarea><button class="btn btn-xs btn-primary" onclick="updateRepairProgress('${vesselCode}','${repairNo}','prog_${safeNo}')"><i class="ti ti-send"></i></button></div></td>
       <td class="text-mono">${trackCount}</td>
       <td class="text-xs">${trackDate}</td>
       <td><div class="flex gap4">${btns}</div></td>
