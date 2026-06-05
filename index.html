@@ -1623,7 +1623,8 @@ async function loadAllRepairs() {
     const repairNo = d['repair_no'] || '-';
     const vesselCode = d['vessel_code'] || '-';
     const statusOpts = (settings.repair_status || []).map(s => `<option ${d['status']===s?'selected':''}>${s}</option>`).join('');
-    const btns = actionBtns.map(a => `<button class="btn btn-xs" onclick="repairAction('${vesselCode}','${repairNo}','${a}')">${a}</button>`).join('');
+    const escapedProgress = (d['progress'] || '').replace(/'/g, "\'").replace(/\n/g, '\\n');
+    const btns = actionBtns.map(a => `<button class="btn btn-xs" onclick="repairAction('${vesselCode}','${repairNo}','${a}','${escapedProgress}')">${a}</button>`).join('');
     const notified = d['supervisor_notified'] === 'yes' ? '<span class="badge badge-approved">已通知</span>' : '<span class="badge badge-pending">未通知</span>';
     const trackDate = d['track_date'] ? String(d['track_date']).slice(0,10) : '-';
     const trackCount = d['track_count'] || 0;
@@ -1649,14 +1650,13 @@ async function loadAllRepairs() {
 let _replyVesselCode = '';
 let _replyRepairNo = '';
 
-function repairAction(vesselCode, repairNo, action) {
+function repairAction(vesselCode, repairNo, action, oldProgress) {
   if (action === '回覆案件') {
     _replyVesselCode = vesselCode;
     _replyRepairNo = repairNo;
     document.getElementById('modal-reply-repairno').textContent = '報修單號：' + repairNo;
-    // 預填舊的處理進度 + 自動加上當前日期時間前綴
-    const safeNo = repairNo.replace(/[^a-zA-Z0-9]/g, '_');
-    const oldProgress = document.getElementById('prog_' + safeNo)?.value || '';
+    // 使用傳入的舊進度
+    oldProgress = (oldProgress || '').replace(/\\n/g, '\n');
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
     const datePrefix = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) +
