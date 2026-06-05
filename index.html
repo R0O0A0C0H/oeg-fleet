@@ -1171,7 +1171,7 @@ async function loadRepairHistory() {
   res.data.forEach(d => {
     const dateStr = d['request_date'] ? String(d['request_date']).slice(0, 10) : '-';
     const status = d['status'] || '-';
-    const statusClass = status === '已完修' ? 'badge-approved' : status === '待處理' ? 'badge-pending' : 'badge-info';
+    const statusClass = status === '已結案' ? 'badge-approved' : status === '已完修' ? 'badge-approved' : status === '待處理' ? 'badge-pending' : 'badge-info';
     const trackDate = d['track_date'] ? String(d['track_date']).slice(0, 10) : '-';
     const trackCount = d['track_count'] || 0;
     const progress = d['progress'] || '-';
@@ -1630,11 +1630,35 @@ async function loadAllRepairs() {
 }
 
 async function repairAction(vesselCode, repairNo, action) {
-  const status = action === '關閉' ? '已完修' : undefined;
-  showLoading('更新中...');
-  await api('updateRepair', { vesselCode, repairNo, status });
-  hideLoading();
-  loadAllRepairs();
+  if (action === '回覆案件') {
+    const progress = prompt('請輸入回覆內容（將寄信通知船端並更新處理進度）：');
+    if (!progress || !progress.trim()) return;
+    showLoading('寄送回覆中...');
+    const res = await api('replyRepair', { vesselCode, repairNo, progress: progress.trim() });
+    hideLoading();
+    if (res.success) {
+      alert('回覆已送出，通知信已寄至船端信箱。');
+      loadAllRepairs();
+    } else {
+      alert('送出失敗：' + res.message);
+    }
+  } else if (action === '結案') {
+    if (!confirm('確定要結案此報修單？結案後將寄信通知船端。')) return;
+    showLoading('結案中...');
+    const res = await api('closeRepair', { vesselCode, repairNo });
+    hideLoading();
+    if (res.success) {
+      alert('案件已結案，通知信已寄至船端信箱。');
+      loadAllRepairs();
+    } else {
+      alert('結案失敗：' + res.message);
+    }
+  } else {
+    showLoading('更新中...');
+    await api('updateRepair', { vesselCode, repairNo });
+    hideLoading();
+    loadAllRepairs();
+  }
 }
 
 async function updateRepairStatus(vesselCode, repairNo, status) {
