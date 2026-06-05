@@ -1707,6 +1707,8 @@ async function submitAllApprovals() {
     if (!byOrder[groupKey]) byOrder[groupKey] = { vesselCode: p.vesselCode, items: [] };
     byOrder[groupKey].items.push(p);
   });
+  console.log('byOrder groups:', JSON.stringify(Object.keys(byOrder)));
+  Object.keys(byOrder).forEach(k => console.log(k, byOrder[k].items.length, 'items'));
   for (const key of Object.keys(byOrder)) {
     const group = byOrder[key];
     await api('batchUpdateOrder', { vesselCode: group.vesselCode, items: group.items });
