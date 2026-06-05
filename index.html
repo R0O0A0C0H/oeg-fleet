@@ -1637,7 +1637,7 @@ async function loadAllRepairs() {
       <td>${d['equipment'] || '-'}</td>
       <td>${notified}</td>
       <td><select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateRepairStatus('${vesselCode}','${repairNo}',this.value)">${statusOpts}</select></td>
-      <td><div class="flex gap4"><input type="text" id="prog_${safeNo}" value="${progress}" placeholder="填寫進度..." style="font-size:11px;padding:3px 6px;width:160px"><button class="btn btn-xs btn-primary" onclick="updateRepairProgress('${vesselCode}','${repairNo}','prog_${safeNo}')"><i class="ti ti-send"></i></button></div></td>
+      <td><div style="display:flex;gap:4px;align-items:flex-start"><textarea id="prog_${safeNo}" placeholder="填寫進度..." style="font-size:11px;padding:3px 6px;width:200px;min-height:40px;resize:vertical;white-space:pre-wrap">${progress}</textarea><button class="btn btn-xs btn-primary" onclick="updateRepairProgress('${vesselCode}','${repairNo}','prog_${safeNo}')"><i class="ti ti-send"></i></button></div></td>
       <td class="text-mono">${trackCount}</td>
       <td class="text-xs">${trackDate}</td>
       <td><div class="flex gap4">${btns}</div></td>
