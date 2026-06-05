@@ -687,6 +687,40 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
   </div>
 </div>
 
+<!-- Reject Order Modal -->
+<div class="modal-overlay" id="modal-reject-order">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-x"></i> 拒絕訂購品項</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px" id="modal-reject-itemno"></div>
+    <div class="form-group">
+      <label class="form-label">拒絕原因（將寄信通知船端）</label>
+      <textarea id="modal-reject-reason" placeholder="請輸入拒絕原因..." style="min-height:80px"></textarea>
+    </div>
+    <div class="err-msg" id="modal-reject-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-reject-order')">取消</button>
+      <button class="btn btn-sm btn-danger" onclick="submitRejectOrder()"><i class="ti ti-x"></i>確認拒絕</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reply Order Modal -->
+<div class="modal-overlay" id="modal-reply-order">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-message-reply"></i> 訂購進度回覆</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px" id="modal-reply-order-itemno"></div>
+    <div class="form-group">
+      <label class="form-label">回覆內容（將寄信通知船端）</label>
+      <textarea id="modal-reply-order-content" placeholder="請輸入處理進度或回覆說明..." style="min-height:100px"></textarea>
+    </div>
+    <div class="err-msg" id="modal-reply-order-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-reply-order')">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="submitReplyOrder()"><i class="ti ti-send"></i>送出回覆</button>
+    </div>
+  </div>
+</div>
+
 <!-- Reply Repair Modal -->
 <div class="modal-overlay" id="modal-reply-repair">
   <div class="modal">
@@ -1505,9 +1539,11 @@ async function loadAllOrders() {
       const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
       const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審核';
       const statusOpts = (settings.order_status || []).map(s => `<option ${d['status']===s?'selected':''}>${s}</option>`).join('');
+      const escapedOrderProgress = encodeURIComponent(d['progress'] || '');
       const btns = actionBtns.map(a =>
         `<button class="btn btn-xs ${a==='批准'?'btn-success':'btn-danger'}" onclick="orderItemAction('${d['vessel_code']}','${itemNo}','${a}',${oi},${ii})">${a}</button>`
       ).join('');
+      const replyBtn = `<button class="btn btn-xs" onclick="openOrderReply('${d['vessel_code']}','${itemNo}',decodeURIComponent('${escapedOrderProgress}'))"><i class="ti ti-message-reply"></i>進度回覆</button>`;
 
       html += `<tr id="orow-${oi}-${ii}">
         <td style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">${seqNum}</td>
@@ -1518,7 +1554,7 @@ async function loadAllOrders() {
         <td style="font-size:11px">${d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-'}</td>
         <td><span class="badge ${badgeClass}" id="ibadge-${oi}-${ii}">${badgeText}</span></td>
         <td>${approved !== 'rejected' ? `<select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateOrderStatus('${d['vessel_code']}','${itemNo}',this.value)">${statusOpts}</select>` : '—'}</td>
-        <td><div class="flex gap4" id="ibtn-${oi}-${ii}">${btns}</div></td>
+        <td><div class="flex gap4" id="ibtn-${oi}-${ii}">${btns}${replyBtn}</div></td>
       </tr>`;
     });
 
@@ -1538,8 +1574,22 @@ function toggleOrderGroup(id) {
 }
 
 function orderItemAction(vesselCode, itemNo, action, orderIdx, ii) {
-  const isApproved = action === '批准' ? 'approved' : 'rejected';
-  const status = action === '批准' ? '備料中' : '已拒絕';
+  // 拒絕時先彈出原因輸入框
+  if (action === '拒絕') {
+    _rejectVesselCode = vesselCode;
+    _rejectItemNo = itemNo;
+    _rejectOrderIdx = orderIdx;
+    _rejectItemIdx = ii;
+    document.getElementById('modal-reject-itemno').textContent = '項目序號：' + itemNo;
+    document.getElementById('modal-reject-reason').value = '';
+    document.getElementById('modal-reject-err').textContent = '';
+    openModal('modal-reject-order');
+    setTimeout(() => document.getElementById('modal-reject-reason').focus(), 100);
+    return;
+  }
+
+  const isApproved = 'approved';
+  const status = '備料中';
 
   // 記錄到暫存清單
   pendingApprovals[itemNo] = { vesselCode, itemNo, isApproved, status, approvedBy: currentAdmin?.accountId };
@@ -1576,13 +1626,79 @@ function orderItemAction(vesselCode, itemNo, action, orderIdx, ii) {
   }
 }
 
+function submitRejectOrder() {
+  const reason = document.getElementById('modal-reject-reason').value.trim();
+  if (!reason) { document.getElementById('modal-reject-err').textContent = '請填寫拒絕原因'; return; }
+  closeModal('modal-reject-order');
+
+  const vesselCode = _rejectVesselCode;
+  const itemNo = _rejectItemNo;
+  const orderIdx = _rejectOrderIdx;
+  const ii = _rejectItemIdx;
+
+  // 記錄到暫存清單（帶拒絕原因）
+  pendingApprovals[itemNo] = { vesselCode, itemNo, isApproved: 'rejected', status: '已拒絕', rejectReason: reason, approvedBy: currentAdmin?.accountId };
+
+  // 更新畫面
+  const row = document.getElementById('orow-' + orderIdx + '-' + ii);
+  if (row) {
+    row.cells[6].innerHTML = '<span class="badge badge-rejected">拒絕</span>';
+    row.cells[7].innerHTML = '—';
+    row.cells[8].innerHTML = `
+      <button class="btn btn-xs btn-success" onclick="orderItemAction('${vesselCode}','${itemNo}','批准',${orderIdx},${ii})">批准</button>
+      <button class="btn btn-xs btn-danger" onclick="orderItemAction('${vesselCode}','${itemNo}','拒絕',${orderIdx},${ii})">拒絕</button>`;
+  }
+
+  const count = Object.keys(pendingApprovals).length;
+  const submitBtn = document.getElementById('submit-approvals-btn');
+  if (submitBtn) {
+    submitBtn.innerHTML = '<i class="ti ti-check"></i>送出審核結果（' + count + '）';
+    submitBtn.style.display = 'inline-flex';
+  }
+}
+
+function openOrderReply(vesselCode, itemNo, oldProgress) {
+  _replyOrderVesselCode = vesselCode;
+  _replyOrderItemNo = itemNo;
+  document.getElementById('modal-reply-order-itemno').textContent = '項目序號：' + itemNo;
+  oldProgress = (oldProgress || '').replace(/\\n/g, '\n');
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const datePrefix = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) +
+    ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ' ';
+  const newContent = oldProgress ? (oldProgress + '\n' + datePrefix) : datePrefix;
+  document.getElementById('modal-reply-order-content').value = newContent;
+  document.getElementById('modal-reply-order-err').textContent = '';
+  openModal('modal-reply-order');
+  setTimeout(() => {
+    const ta = document.getElementById('modal-reply-order-content');
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }, 100);
+}
+
+async function submitReplyOrder() {
+  const progress = document.getElementById('modal-reply-order-content').value.trim();
+  if (!progress) { document.getElementById('modal-reply-order-err').textContent = '請填寫回覆內容'; return; }
+  closeModal('modal-reply-order');
+  showLoading('寄送回覆中...');
+  const res = await api('replyOrder', { vesselCode: _replyOrderVesselCode, itemNo: _replyOrderItemNo, progress });
+  hideLoading();
+  if (res.success) {
+    alert('回覆已送出，通知信已寄至船端信箱。');
+    loadAllOrders();
+  } else {
+    alert('送出失敗：' + res.message);
+  }
+}
+
 async function submitAllApprovals() {
   const count = Object.keys(pendingApprovals).length;
   if (count === 0) { alert('沒有待送出的審核結果'); return; }
   showLoading('送出中...');
   for (const key of Object.keys(pendingApprovals)) {
     const p = pendingApprovals[key];
-    await api('updateOrder', { vesselCode: p.vesselCode, itemNo: p.itemNo, isApproved: p.isApproved, status: p.status, approvedBy: p.approvedBy });
+    await api('updateOrder', { vesselCode: p.vesselCode, itemNo: p.itemNo, isApproved: p.isApproved, status: p.status, rejectReason: p.rejectReason, approvedBy: p.approvedBy });
   }
   pendingApprovals = {};
   hideLoading();
@@ -1650,6 +1766,13 @@ async function loadAllRepairs() {
 
 let _replyVesselCode = '';
 let _replyRepairNo = '';
+let _rejectVesselCode = '';
+let _rejectItemNo = '';
+let _rejectOrderIdx = -1;
+let _rejectItemIdx = -1;
+let _replyOrderVesselCode = '';
+let _replyOrderItemNo = '';
+let _replyOrderOldProgress = '';
 
 function repairAction(vesselCode, repairNo, action, oldProgress) {
   if (action === '回覆案件') {
