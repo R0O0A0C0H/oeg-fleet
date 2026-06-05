@@ -540,6 +540,7 @@ textarea{resize:vertical;min-height:70px}
       <div id="aab-orders" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">訂購單管理</div><div class="action-bar-sub">審核與更新訂購單狀態</div></div>
         <div class="action-bar-right">
+          <button class="btn btn-sm btn-primary" id="submit-approvals-btn" style="display:none" onclick="submitAllApprovals()"><i class="ti ti-check"></i>送出審核結果</button>
           <button class="btn btn-sm" onclick="toggleSettingsPanel('order-settings-panel')"><i class="ti ti-settings"></i>狀態／操作設定</button>
           <button class="btn btn-sm" onclick="loadAllOrders()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
@@ -738,6 +739,7 @@ let lang = 'zh';
 let settings = { order_status:[], order_action:[], repair_status:[], repair_action:[] };
 let offlineQueue = JSON.parse(localStorage.getItem('oeg_offline_queue') || '[]');
 let filledRows = 0;
+let pendingApprovals = {}; // 暫存批准結果 { itemNo: { vesselCode, itemNo, isApproved, status } }
 
 // ============================================================
 // API
@@ -1419,6 +1421,9 @@ async function changeVessel(accountId, vesselCode) {
 }
 
 async function loadAllOrders() {
+  pendingApprovals = {};
+  const submitBtn = document.getElementById('submit-approvals-btn');
+  if (submitBtn) submitBtn.style.display = 'none';
   const el = document.getElementById('orders-content');
   el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
   const res = await api('getAllOrders', {});
@@ -1515,12 +1520,56 @@ function toggleOrderGroup(id) {
   if (chev) chev.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
 }
 
-async function orderItemAction(vesselCode, itemNo, action, orderIdx) {
+function orderItemAction(vesselCode, itemNo, action, orderIdx) {
   const isApproved = action === '批准' ? 'approved' : 'rejected';
   const status = action === '批准' ? '備料中' : '已拒絕';
-  showLoading('更新中...');
-  await api('updateOrder', { vesselCode, itemNo, isApproved, status, approvedBy: currentAdmin?.accountId });
+
+  // 記錄到暫存清單
+  pendingApprovals[itemNo] = { vesselCode, itemNo, isApproved, status, approvedBy: currentAdmin?.accountId };
+
+  // 找到對應的列更新畫面
+  // 找出目前所有訂單群組裡這個 itemNo 的位置
+  const allRows = document.querySelectorAll('[id^="orow-"]');
+  allRows.forEach(row => {
+    const btn = row.querySelector(`[onclick*="'${itemNo}'"]`);
+    if (!btn) return;
+    const cells = row.cells;
+    if (!cells || cells.length < 8) return;
+    // 更新批准狀態 badge
+    const badgeCell = cells[6];
+    const statusCell = cells[7];
+    const btnCell = cells[8];
+    if (isApproved === 'approved') {
+      badgeCell.innerHTML = '<span class="badge badge-approved">批准</span>';
+      statusCell.innerHTML = '<select style="font-size:11px;padding:3px 6px;width:90px"><option selected>備料中</option></select>';
+    } else {
+      badgeCell.innerHTML = '<span class="badge badge-rejected">拒絕</span>';
+      statusCell.innerHTML = '—';
+    }
+    btnCell.innerHTML = '';
+  });
+
+  // 顯示送出按鈕數量提示
+  const count = Object.keys(pendingApprovals).length;
+  const submitBtn = document.getElementById('submit-approvals-btn');
+  if (submitBtn) {
+    submitBtn.textContent = '送出審核結果（' + count + '）';
+    submitBtn.style.display = 'inline-flex';
+  }
+}
+
+async function submitAllApprovals() {
+  const count = Object.keys(pendingApprovals).length;
+  if (count === 0) { alert('沒有待送出的審核結果'); return; }
+  showLoading('送出中...');
+  for (const key of Object.keys(pendingApprovals)) {
+    const p = pendingApprovals[key];
+    await api('updateOrder', { vesselCode: p.vesselCode, itemNo: p.itemNo, isApproved: p.isApproved, status: p.status, approvedBy: p.approvedBy });
+  }
+  pendingApprovals = {};
   hideLoading();
+  const submitBtn = document.getElementById('submit-approvals-btn');
+  if (submitBtn) submitBtn.style.display = 'none';
   loadAllOrders();
 }
 
