@@ -366,7 +366,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       </div>
       <div id="cab-order-history" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">訂購紀錄</div><div class="action-bar-sub">本船所有訂購單</div></div>
-        <div class="action-bar-right"><button class="btn btn-sm" onclick="loadOrderHistory()"><i class="ti ti-refresh"></i>重新整理</button></div>
+        <div class="action-bar-right"><button class="btn btn-sm" onclick="_orderHistoryData=null;loadOrderHistory()"><i class="ti ti-refresh"></i>重新整理</button></div>
       </div>
       <div id="cab-repair-new" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">新增報修單</div><div class="action-bar-sub">Maintenance Request Form</div></div>
@@ -377,7 +377,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       </div>
       <div id="cab-repair-history" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">報修紀錄</div><div class="action-bar-sub">本船所有報修單</div></div>
-        <div class="action-bar-right"><button class="btn btn-sm" onclick="loadRepairHistory()"><i class="ti ti-refresh"></i>重新整理</button></div>
+        <div class="action-bar-right"><button class="btn btn-sm" onclick="_repairHistoryData=null;loadRepairHistory()"><i class="ti ti-refresh"></i>重新整理</button></div>
       </div>
 
       <div class="page-body">
@@ -517,14 +517,14 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="action-bar-right">
           <button class="btn btn-sm btn-primary" id="submit-approvals-btn" style="display:none" onclick="submitAllApprovals()"><i class="ti ti-check"></i>送出審核結果</button>
           <button class="btn btn-sm" onclick="toggleSettingsPanel('order-settings-panel')"><i class="ti ti-settings"></i>狀態／操作設定</button>
-          <button class="btn btn-sm" onclick="loadAllOrders()"><i class="ti ti-refresh"></i>重新整理</button>
+          <button class="btn btn-sm" onclick="_allOrdersData=null;loadAllOrders()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
       <div id="aab-repairs" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">報修單管理</div><div class="action-bar-sub">查看與更新報修單狀態</div></div>
         <div class="action-bar-right">
           <button class="btn btn-sm" onclick="toggleSettingsPanel('repair-settings-panel')"><i class="ti ti-settings"></i>狀態／操作設定</button>
-          <button class="btn btn-sm" onclick="loadAllRepairs()"><i class="ti ti-refresh"></i>重新整理</button>
+          <button class="btn btn-sm" onclick="_allRepairsData=null;loadAllRepairs()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
 
@@ -1724,10 +1724,22 @@ async function loadAllRepairs(month) {
     const progress = d['progress'] || '';
     const safeNo = repairNo.replace(/[^a-zA-Z0-9]/g, '_');
     // 首要照片縮圖
-    const mainImgs = d['images_main'] || '';
-    const extraImgs = d['images_extra'] || '';
+    const mainImgs = (d['images_main'] || '').trim();
+    const extraImgs = (d['images_extra'] || '').trim();
     const allImgs = [mainImgs, extraImgs].filter(Boolean).join(',');
-    const imgsHtml = mainImgs ? renderAdminImgCell(mainImgs, 2) + (extraImgs ? '<span class="admin-img-more" onclick="viewAdminImages(\'' + allImgs + '\',\'全部照片\')">+更多</span>' : '') : '-';
+    let imgsHtml = '-';
+    if (mainImgs) {
+      const mainUrls = mainImgs.split(',').map(u => u.trim()).filter(Boolean);
+      const thumbs = mainUrls.slice(0,2).map(u => {
+        const safe = u.replace(/'/g,'%27');
+        return '<img class="admin-img-thumb" src="' + u + '" loading="lazy" onclick="openLightboxUrl(\'' + safe + '\')">';
+      }).join('');
+      const moreHtml = extraImgs ? (() => {
+        const allSafe = allImgs.replace(/'/g,'%27');
+        return '<span class="admin-img-more" onclick="viewAdminImages(\'' + allSafe + '\',\'全部照片\')">+更多</span>';
+      })() : '';
+      imgsHtml = '<div class="admin-img-row">' + thumbs + moreHtml + '</div>';
+    }
 
     html += '<tr><td class="text-mono text-xs">' + repairNo + '</td><td>' + vesselCode + '</td>' +
       '<td>' + (d['reporter_zh'] || '-') + '</td><td>' + (d['equipment'] || '-') + '</td>' +
