@@ -203,6 +203,18 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 .admin-img-thumb:hover{opacity:0.8}
 .admin-img-more{font-size:10px;color:var(--accent);cursor:pointer;white-space:nowrap;padding:2px 4px;border:0.5px solid var(--border2);border-radius:3px}
 .admin-img-more:hover{background:var(--bg3)}
+
+/* ── Progress display ── */
+.prog-display{background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--radius);padding:6px 8px;font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:4px}
+.prog-latest{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;cursor:pointer;color:var(--text)}
+.prog-latest:hover{color:var(--accent)}
+.prog-all{display:none;white-space:pre-wrap;max-height:120px;overflow-y:auto;margin-top:4px;padding-top:4px;border-top:0.5px solid var(--border)}
+.prog-all.open{display:block}
+.prog-draft{background:rgba(59,158,255,0.08);border:1px dashed var(--accent);border-radius:var(--radius);padding:4px 6px;font-size:11px;margin-top:4px;color:var(--text);width:200px;display:flex;align-items:flex-start;gap:4px}
+.prog-draft textarea{background:transparent;border:none;outline:none;resize:none;font-size:11px;color:var(--text);width:100%;min-height:36px;font-family:var(--font-main);padding:0}
+.prog-draft-badge{font-size:9px;background:var(--accent);color:#fff;padding:1px 4px;border-radius:3px;white-space:nowrap;margin-top:2px;flex-shrink:0}
+.prog-pending-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:4px;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 </style>
 </head>
 <body>
@@ -516,6 +528,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="action-bar-left"><div class="action-bar-title">訂購單管理</div><div class="action-bar-sub">審核與更新訂購單狀態</div></div>
         <div class="action-bar-right">
           <button class="btn btn-sm btn-primary" id="submit-approvals-btn" style="display:none" onclick="submitAllApprovals()"><i class="ti ti-check"></i>送出審核結果</button>
+          <button class="btn btn-sm btn-success" id="submit-order-progress-btn" style="display:none" onclick="submitAllOrderProgress()"><i class="ti ti-send"></i>送出進度更新</button>
           <button class="btn btn-sm" onclick="toggleSettingsPanel('order-settings-panel')"><i class="ti ti-settings"></i>狀態／操作設定</button>
           <button class="btn btn-sm" onclick="_allOrdersData=null;loadAllOrders()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
@@ -524,6 +537,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="action-bar-left"><div class="action-bar-title">報修單管理</div><div class="action-bar-sub">查看與更新報修單狀態</div></div>
         <div class="action-bar-right">
           <button class="btn btn-sm" onclick="toggleSettingsPanel('repair-settings-panel')"><i class="ti ti-settings"></i>狀態／操作設定</button>
+          <button class="btn btn-sm btn-primary" id="submit-progress-btn" style="display:none" onclick="submitAllProgress()"><i class="ti ti-send"></i>送出進度更新</button>
           <button class="btn btn-sm" onclick="_allRepairsData=null;loadAllRepairs()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
@@ -722,6 +736,8 @@ const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/dlivlqhlj/image/upload';
 const CLOUDINARY_PRESET = 'oeg_fleet';
 const CLOUDINARY_FOLDER = 'oeg-fleet';
 
+let pendingProgress = {};
+let pendingOrderProgress = {}; // { itemNo: { vesselCode, itemNo, text, oldProgress } } // { repairNo: { vesselCode, repairNo, text } }
 let orderFiles = [];
 let repairFiles = [];
 let repairMainIndexes = [];
@@ -1562,7 +1578,7 @@ async function loadAllOrders(month) {
       (imgsHtml ? imgsHtml : '') +
       '<i class="ti ti-chevron-down" style="margin-left:auto;color:var(--text3);transition:transform 0.2s" id="ochev-' + oi + '" aria-hidden="true"></i></div>' +
       '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
-      '<th>#</th><th>品名</th><th>料號</th><th>數量</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>目前狀態</th><th>操作</th>' +
+      '<th>#</th><th>品名</th><th>料號</th><th>數量</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>目前狀態</th><th>處理進度</th><th>操作</th>' +
       '</tr></thead><tbody>';
 
     order.items.forEach((d, ii) => {
@@ -1572,18 +1588,40 @@ async function loadAllOrders(month) {
       const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
       const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審核';
       const statusOpts = (settings.order_status || []).map(s => '<option ' + (d['status']===s?'selected':'') + '>' + s + '</option>').join('');
-      const escapedOrderProgress = encodeURIComponent(d['progress'] || '');
       const btns = actionBtns.map(a => '<button class="btn btn-xs ' + (a==='批准'?'btn-success':'btn-danger') + '" onclick="orderItemAction(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'' + a + '\',' + oi + ',' + ii + ')">' + a + '</button>').join('');
-      const replyBtn = '<button class="btn btn-xs" onclick="openOrderReply(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',decodeURIComponent(\'' + escapedOrderProgress + '\'))"><i class="ti ti-message-reply"></i>進度回覆</button>';
+
+      // 進度欄
+      const itemProgress = d['progress'] || '';
+      const ipLines = itemProgress ? itemProgress.split('\n').filter(Boolean) : [];
+      const ipLatest = ipLines[ipLines.length-1] || '';
+      const ipSafe = itemNo.replace(/[^a-zA-Z0-9]/g,'_');
+      const ipDraft = pendingOrderProgress[itemNo];
+      const ipDraftVal = ipDraft ? ipDraft.text : '';
+      let progHtml = '<td style="min-width:200px">';
+      if (itemProgress) {
+        progHtml += '<div class="prog-display">';
+        progHtml += '<div class="prog-latest" onclick="toggleProgAll(\'opall_' + ipSafe + '\')" title="點擊展開全部">' + ipLatest.replace(/</g,'&lt;') + '</div>';
+        if (ipLines.length > 1) progHtml += '<div class="prog-all" id="opall_' + ipSafe + '">' + itemProgress.replace(/</g,'&lt;') + '</div>';
+        progHtml += '</div>';
+      } else {
+        progHtml += '<div class="text-dimmer text-xs" style="margin-bottom:4px">尚無進度</div>';
+      }
+      progHtml += '<div class="prog-draft" id="opdraft_' + ipSafe + '">';
+      if (ipDraft) progHtml += '<span class="prog-draft-badge"><span class="prog-pending-dot"></span>待送出</span>';
+      progHtml += '<textarea placeholder="輸入新進度..." oninput="onOrderProgressDraft(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'' + encodeURIComponent(itemProgress) + '\',this)">' + ipDraftVal + '</textarea>';
+      progHtml += '</div></td>';
+
       html += '<tr id="orow-' + oi + '-' + ii + '">' +
         '<td style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">' + seqNum + '</td>' +
-        '<td>' + (d['item_name'] || '-') + '</td><td style="font-size:11px">' + (d['part_no'] || '-') + '</td>' +
+        '<td>' + (d['item_name'] || '-') + '</td>' +
+        '<td style="font-size:11px">' + (d['part_no'] || '-') + '</td>' +
         '<td>' + (d['qty'] || '-') + ' ' + (d['unit'] || '') + '</td>' +
         '<td style="font-size:11px">' + (d['purpose'] || '-') + '</td>' +
         '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
         '<td><span class="badge ' + badgeClass + '" id="ibadge-' + oi + '-' + ii + '">' + badgeText + '</span></td>' +
         '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
-        '<td><div class="flex gap4" id="ibtn-' + oi + '-' + ii + '">' + btns + replyBtn + '</div></td></tr>';
+        progHtml +
+        '<td><div class="flex gap4" id="ibtn-' + oi + '-' + ii + '">' + btns + '</div></td></tr>';
     });
     html += '</tbody></table></div></div></div>';
   });
@@ -1664,6 +1702,81 @@ async function submitReplyOrder() {
   else { alert('送出失敗：' + res.message); }
 }
 
+
+function onOrderProgressDraft(vesselCode, itemNo, encodedOldProg, textarea) {
+  const text = textarea.value.trim();
+  const ipSafe = itemNo.replace(/[^a-zA-Z0-9]/g, '_');
+  const draftEl = document.getElementById('opdraft_' + ipSafe);
+  if (text) {
+    pendingOrderProgress[itemNo] = { vesselCode, itemNo, text, oldProgress: decodeURIComponent(encodedOldProg) };
+    if (draftEl && !draftEl.querySelector('.prog-draft-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'prog-draft-badge';
+      badge.innerHTML = '<span class="prog-pending-dot"></span>待送出';
+      draftEl.insertBefore(badge, draftEl.firstChild);
+    }
+  } else {
+    delete pendingOrderProgress[itemNo];
+    if (draftEl) { const b = draftEl.querySelector('.prog-draft-badge'); if (b) b.remove(); }
+  }
+  const count = Object.keys(pendingOrderProgress).length;
+  const btn = document.getElementById('submit-order-progress-btn');
+  if (btn) {
+    btn.style.display = count > 0 ? 'inline-flex' : 'none';
+    btn.innerHTML = '<i class="ti ti-send"></i>送出進度更新（' + count + '）';
+  }
+}
+
+async function submitAllOrderProgress() {
+  const count = Object.keys(pendingOrderProgress).length;
+  if (count === 0) { alert('沒有待送出的進度'); return; }
+
+  // 按訂單號分組（同一張單只寄一封信）
+  const byOrder = {};
+  Object.values(pendingOrderProgress).forEach(item => {
+    const parts = item.itemNo.split('-');
+    const orderNo = parts.slice(0, -1).join('-');
+    const groupKey = item.vesselCode + '_' + orderNo;
+    if (!byOrder[groupKey]) byOrder[groupKey] = { vesselCode: item.vesselCode, orderNo, items: [] };
+    byOrder[groupKey].items.push(item);
+  });
+
+  showLoading('送出進度中...');
+  let failCount = 0;
+  for (const key of Object.keys(byOrder)) {
+    const group = byOrder[key];
+    // 為每個 item 組合完整 progress（舊進度 + 日期前綴 + 新內容）
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const datePrefix = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ' ';
+
+    const progressUpdates = group.items.map(item => {
+      const newProg = item.oldProgress
+        ? (item.oldProgress + '\n' + datePrefix + item.text)
+        : (datePrefix + item.text);
+      return { itemNo: item.itemNo, progress: newProg };
+    });
+
+    // replyOrder 原本是針對單一 itemNo，這裡批次送出
+    for (const pu of progressUpdates) {
+      const res = await api('replyOrder', {
+        vesselCode: group.vesselCode,
+        itemNo: pu.itemNo,
+        progress: pu.progress
+      });
+      if (!res.success) failCount++;
+    }
+  }
+
+  pendingOrderProgress = {};
+  const btn = document.getElementById('submit-order-progress-btn');
+  if (btn) btn.style.display = 'none';
+  hideLoading();
+  if (failCount > 0) alert('部分進度更新失敗（' + failCount + ' 筆），請重新整理後確認。');
+  else alert('進度已送出，通知信已寄至各船端信箱。');
+  _allOrdersData = null;
+  loadAllOrders();
+}
 async function submitAllApprovals() {
   const count = Object.keys(pendingApprovals).length;
   if (count === 0) { alert('沒有待送出的審核結果'); return; }
@@ -1746,7 +1859,30 @@ async function loadAllRepairs(month) {
       '<td>' + imgsHtml + '</td>' +
       '<td>' + notified + '</td>' +
       '<td><select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateRepairStatus(\'' + vesselCode + '\',\'' + repairNo + '\',this.value)">' + statusOpts + '</select></td>' +
-      '<td><div style="display:flex;gap:4px;align-items:flex-start"><textarea id="prog_' + safeNo + '" class="inline-prog" placeholder="填寫進度...">' + progress + '</textarea><button class="btn btn-xs btn-primary" onclick="updateRepairProgress(\'' + vesselCode + '\',\'' + repairNo + '\',\'prog_' + safeNo + '\')"><i class="ti ti-send"></i></button></div></td>' +
+      (() => {
+      const lines = progress ? progress.split('\n').filter(Boolean) : [];
+      const latest = lines[lines.length-1] || '';
+      const hasDraft = pendingProgress[repairNo];
+      const draftVal = hasDraft ? hasDraft.text : '';
+      const safeLatest = latest.replace(/'/g,'&#39;');
+      let html = '<td>';
+      // 進度顯示區
+      if (progress) {
+        html += '<div class="prog-display">';
+        html += '<div class="prog-latest" onclick="toggleProgAll(\'pall_' + safeNo + '\')" title="點擊展開全部">' + safeLatest + '</div>';
+        if (lines.length > 1) html += '<div class="prog-all" id="pall_' + safeNo + '">' + progress.replace(/</g,'&lt;') + '</div>';
+        html += '</div>';
+      } else {
+        html += '<div class="text-dimmer text-xs" style="margin-bottom:4px">尚無進度</div>';
+      }
+      // 草稿輸入區
+      html += '<div class="prog-draft" id="pdraft_' + safeNo + '">';
+      if (hasDraft) html += '<span class="prog-draft-badge"><span class="prog-pending-dot"></span>待送出</span>';
+      html += '<textarea placeholder="輸入新進度..." oninput="onProgressDraft(\'' + vesselCode + '\',\'' + repairNo + '\',this)">' + draftVal + '</textarea>';
+      html += '</div>';
+      html += '</td>';
+      return html;
+    })() +
       '<td class="text-mono">' + trackCount + '</td><td class="text-xs">' + trackDate + '</td>' +
       '<td><div class="flex gap4">' + btns + '</div></td></tr>';
   });
@@ -1801,6 +1937,63 @@ async function submitReplyRepair() {
 }
 
 async function updateRepairStatus(vesselCode, repairNo, status) { await api('updateRepair', { vesselCode, repairNo, status }); }
+
+function onProgressDraft(vesselCode, repairNo, textarea) {
+  const text = textarea.value.trim();
+  const safeNo = repairNo.replace(/[^a-zA-Z0-9]/g, '_');
+  const draftEl = document.getElementById('pdraft_' + safeNo);
+  if (text) {
+    pendingProgress[repairNo] = { vesselCode, repairNo, text };
+    if (draftEl && !draftEl.querySelector('.prog-draft-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'prog-draft-badge';
+      badge.innerHTML = '<span class="prog-pending-dot"></span>待送出';
+      draftEl.insertBefore(badge, draftEl.firstChild);
+    }
+  } else {
+    delete pendingProgress[repairNo];
+    if (draftEl) {
+      const badge = draftEl.querySelector('.prog-draft-badge');
+      if (badge) badge.remove();
+    }
+  }
+  const count = Object.keys(pendingProgress).length;
+  const btn = document.getElementById('submit-progress-btn');
+  if (btn) {
+    btn.style.display = count > 0 ? 'inline-flex' : 'none';
+    btn.innerHTML = '<i class="ti ti-send"></i>送出進度更新（' + count + '）';
+  }
+}
+
+function toggleProgAll(id) {
+  document.getElementById(id)?.classList.toggle('open');
+}
+
+async function submitAllProgress() {
+  const count = Object.keys(pendingProgress).length;
+  if (count === 0) { alert('沒有待送出的進度'); return; }
+  showLoading('送出進度中...');
+  const items = Object.values(pendingProgress);
+  let failCount = 0;
+  for (const item of items) {
+    // 取得該報修單目前的舊進度，附加新進度
+    const existing = _allRepairsData?.find(d => d['repair_no'] === item.repairNo);
+    const oldProg = existing ? (existing['progress'] || '') : '';
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const datePrefix = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ' ';
+    const newProgress = oldProg ? (oldProg + '\n' + datePrefix + item.text) : (datePrefix + item.text);
+    const res = await api('updateRepair', { vesselCode: item.vesselCode, repairNo: item.repairNo, progress: newProgress });
+    if (!res.success) failCount++;
+  }
+  pendingProgress = {};
+  const btn = document.getElementById('submit-progress-btn');
+  if (btn) btn.style.display = 'none';
+  hideLoading();
+  if (failCount > 0) alert('部分進度更新失敗（' + failCount + '/' + count + '），請重新整理後確認。');
+  _allRepairsData = null;
+  loadAllRepairs();
+}
 
 async function updateRepairProgress(vesselCode, repairNo, inputId) {
   const progress = document.getElementById(inputId)?.value.trim();
