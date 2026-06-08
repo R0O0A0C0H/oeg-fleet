@@ -3622,7 +3622,7 @@ async function checkSystemStatus() {
   const settings = r.settings || {};
 
   // 維護模式
-  if (settings['maintenance_mode'] === 'true') {
+  const _mm = settings['maintenance_mode']; if (_mm === true || _mm === 'true' || _mm === 'yes' || _mm === 1) {
     const msg = settings['maintenance_message'] || '系統維護中，請稍後再試。';
     const banner = document.getElementById('maintenance-banner');
     const bannerMsg = document.getElementById('maintenance-banner-msg');
