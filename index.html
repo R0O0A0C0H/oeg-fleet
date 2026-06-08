@@ -230,6 +230,14 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 .dqty-input{width:56px!important;padding:3px 6px!important;font-size:12px!important;text-align:center;background:var(--bg3);border:0.5px solid var(--border2);border-radius:var(--radius);color:var(--text)}
 .dqty-input.has-pending{border-color:var(--accent);background:rgba(59,158,255,0.08)}
 .dqty-badge{font-size:9px;background:var(--accent);color:#fff;padding:1px 4px;border-radius:3px;white-space:nowrap}
+
+/* ── 合併出單 ── */
+.merge-check{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+.merge-row-selected td{background:rgba(59,158,255,0.06)!important}
+.merge-qty-input{width:56px!important;padding:2px 5px!important;font-size:11px!important;text-align:center;display:inline-block}
+.merge-panel{background:var(--bg3);border:0.5px solid var(--accent);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:none;align-items:center;gap:10px;flex-wrap:wrap}
+.merge-panel.show{display:flex}
+.merge-count-badge{background:var(--accent);color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-family:var(--font-mono)}
 </style>
 </head>
 <body>
@@ -555,6 +563,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           <button class="btn btn-sm btn-primary" id="submit-approvals-btn" style="display:none" onclick="submitAllApprovals()"><i class="ti ti-check"></i>送出審核結果</button>
           <button class="btn btn-sm btn-success" id="submit-order-progress-btn" style="display:none" onclick="submitAllOrderProgress()"><i class="ti ti-send"></i>送出進度更新</button>
           <button class="btn btn-sm" id="submit-delivery-btn" style="display:none;background:rgba(243,156,18,0.15);border-color:rgba(243,156,18,0.4);color:var(--warning)" onclick="submitAllDelivery()"><i class="ti ti-package"></i>送出出貨記錄</button>
+          <button class="btn btn-sm" id="merge-receipt-btn" style="display:none;border-color:rgba(52,152,219,0.4);color:var(--info)" onclick="openMergeReceiptModal()"><i class="ti ti-files"></i>合併出單</button>
           <button class="btn btn-sm" onclick="toggleSettingsPanel('order-settings-panel')"><i class="ti ti-settings"></i>狀態／操作設定</button>
           <button class="btn btn-sm" onclick="_allOrdersData=null;loadAllOrders()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
@@ -728,6 +737,33 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
   </div>
 </div>
 
+
+<!-- 合併出單 Modal -->
+<div class="modal-overlay" id="modal-merge-receipt" style="z-index:400">
+  <div class="modal" style="width:820px;max-width:96vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-title"><i class="ti ti-files"></i> 合併出單 — 確認出貨數量與簽收單</div>
+    <div class="notice notice-info" style="margin-bottom:12px">
+      <i class="ti ti-info-circle"></i>
+      <span>請確認各品項出貨數量後輸出簽收單。出貨數量將同時寫入系統。</span>
+    </div>
+    <table class="data-table" id="merge-items-table">
+      <thead>
+        <tr>
+          <th>訂單號</th><th>品名</th><th>料號</th>
+          <th style="text-align:center">申請數</th>
+          <th style="text-align:center;color:var(--warning)">出貨數量 ✎</th>
+          <th>申請用途</th><th>船隻</th>
+        </tr>
+      </thead>
+      <tbody id="merge-items-tbody"></tbody>
+    </table>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-merge-receipt')">取消</button>
+      <button class="btn btn-sm" onclick="printMergeReceiptDirect()"><i class="ti ti-printer"></i> 列印</button>
+      <button class="btn btn-sm btn-primary" onclick="submitAndPrintMerge()"><i class="ti ti-package"></i> 記錄出貨並下載 PDF</button>
+    </div>
+  </div>
+</div>
 <!-- 簽收單 Modal -->
 <div class="modal-overlay" id="modal-receipt" style="z-index:400">
   <div class="modal" style="width:780px;max-width:96vw;max-height:90vh;overflow-y:auto">
@@ -837,7 +873,8 @@ const CLOUDINARY_FOLDER = 'oeg-fleet';
 
 let pendingProgress = {};
 let pendingOrderProgress = {};
-let pendingDelivery = {}; // { itemNo: { vesselCode, itemNo, deliveredQty } } // { itemNo: { vesselCode, itemNo, text, oldProgress } } // { repairNo: { vesselCode, repairNo, text } }
+let pendingDelivery = {};
+// mergeSelectedItems 定義在 merge_js 內, itemName, partNo, qty, unit, purpose, orderNo }] // { itemNo: { vesselCode, itemNo, deliveredQty } } // { itemNo: { vesselCode, itemNo, text, oldProgress } } // { repairNo: { vesselCode, repairNo, text } }
 let orderFiles = [];
 let repairFiles = [];
 let repairMainIndexes = [];
@@ -1845,6 +1882,9 @@ let _allOrdersMonth = null;
 
 async function loadAllOrders(month) {
   pendingApprovals = {};
+  mergeSelectedItems = [];
+  const mergeBtn = document.getElementById('merge-receipt-btn');
+  if (mergeBtn) mergeBtn.style.display = 'none';
   const submitBtn = document.getElementById('submit-approvals-btn');
   if (submitBtn) submitBtn.style.display = 'none';
   const el = document.getElementById('orders-content');
@@ -1897,7 +1937,7 @@ async function loadAllOrders(month) {
       (imgsHtml ? imgsHtml : '') +
       '<div style="margin-left:auto;display:flex;align-items:center;gap:6px">' +'<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModal(\'' + order.orderNo + '\',\'' + order.vessel + '\')"><i class="ti ti-file-invoice"></i> 簽收單</button>' +'<i class="ti ti-chevron-down" style="color:var(--text3);transition:transform 0.2s" id="ochev-' + oi + '" aria-hidden="true"></i>' +'</div></div>' +
       '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
-      '<th>#</th><th>品名</th><th>料號</th><th>申請數</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>出貨數量</th><th>處理進度</th><th>操作</th>' +
+      '<th style="width:32px"><input type="checkbox" class="merge-check" title="全選/取消" onchange="toggleSelectAllItems(this,\'' + oi + '\')" id="chk-all-' + oi + '"></th><th>#</th><th>品名</th><th>料號</th><th>申請數</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>出貨數量</th><th>處理進度</th><th>操作</th>' +
       '</tr></thead><tbody>';
 
     order.items.forEach((d, ii) => {
@@ -1942,7 +1982,8 @@ async function loadAllOrders(month) {
       progHtml += '<textarea placeholder="輸入新進度..." oninput="onOrderProgressDraft(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'' + encodeURIComponent(itemProgress) + '\',this)">' + ipDraftVal + '</textarea>';
       progHtml += '</div></td>';
 
-      html += '<tr id="orow-' + oi + '-' + ii + '">' +
+      html += '<tr id="orow-' + oi + '-' + ii + '" class="" data-itemno="' + itemNo + '" data-vessel="' + d['vessel_code'] + '" data-itemname="' + (d['item_name']||'').replace(/"/g,"'") + '" data-partno="' + (d['part_no']||'') + '" data-qty="' + (d['qty']||'') + '" data-unit="' + (d['unit']||'') + '" data-purpose="' + (d['purpose']||'').replace(/"/g,"'") + '" data-deliveredqty="' + (d['delivered_qty']||'') + '">' +
+        '<td style="text-align:center"><input type="checkbox" class="merge-check item-check" data-oi="' + oi + '" onchange="onItemCheck(this)"></td>' +
         '<td style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">' + seqNum + '</td>' +
         '<td>' + (d['item_name'] || '-') + '</td>' +
         '<td style="font-size:11px">' + (d['part_no'] || '-') + '</td>' +
@@ -2365,6 +2406,256 @@ async function downloadReceiptPDF() {
 // ============================================================
 // 出貨數量暫存與送出
 // ============================================================
+
+// ============================================================
+// 合併出單
+// ============================================================
+let mergeSelectedItems = [];
+
+function onItemCheck(checkbox) {
+  const tr = checkbox.closest('tr');
+  const itemNo = tr.dataset.itemno;
+  const vesselCode = tr.dataset.vessel;
+  const itemName = tr.dataset.itemname;
+  const partNo = tr.dataset.partno;
+  const qty = tr.dataset.qty;
+  const unit = tr.dataset.unit;
+  const purpose = tr.dataset.purpose;
+  const deliveredQty = tr.dataset.deliveredqty;
+  // 從 itemNo 取訂單號（去掉最後 -XX）
+  const parts = itemNo.split('-');
+  const orderNo = parts.slice(0, -1).join('-');
+
+  if (checkbox.checked) {
+    tr.classList.add('merge-row-selected');
+    mergeSelectedItems.push({ itemNo, vesselCode, itemName, partNo, qty, unit, purpose, orderNo, deliveredQty });
+  } else {
+    tr.classList.remove('merge-row-selected');
+    mergeSelectedItems = mergeSelectedItems.filter(i => i.itemNo !== itemNo);
+  }
+
+  // 更新合併出單按鈕
+  const btn = document.getElementById('merge-receipt-btn');
+  if (btn) {
+    const count = mergeSelectedItems.length;
+    btn.style.display = count > 0 ? 'inline-flex' : 'none';
+    btn.innerHTML = '<i class="ti ti-files"></i> 合併出單（' + count + '）';
+  }
+
+  // 確認同艘船
+  if (mergeSelectedItems.length > 1) {
+    const vessels = [...new Set(mergeSelectedItems.map(i => i.vesselCode))];
+    if (vessels.length > 1) {
+      alert('合併出單僅限同一艘船的訂單，請取消不同船隻的品項。');
+      checkbox.checked = false;
+      tr.classList.remove('merge-row-selected');
+      mergeSelectedItems = mergeSelectedItems.filter(i => i.itemNo !== itemNo);
+      const btn2 = document.getElementById('merge-receipt-btn');
+      const count2 = mergeSelectedItems.length;
+      if (btn2) {
+        btn2.style.display = count2 > 0 ? 'inline-flex' : 'none';
+        btn2.innerHTML = '<i class="ti ti-files"></i> 合併出單（' + count2 + '）';
+      }
+    }
+  }
+}
+
+function toggleSelectAllItems(masterCb, oi) {
+  const rows = document.querySelectorAll('#og' + oi + ' .item-check');
+  rows.forEach(cb => {
+    if (cb.checked !== masterCb.checked) {
+      cb.checked = masterCb.checked;
+      onItemCheck(cb);
+    }
+  });
+}
+
+function openMergeReceiptModal() {
+  if (mergeSelectedItems.length === 0) { alert('請先勾選要合併出單的品項'); return; }
+  const tbody = document.getElementById('merge-items-tbody');
+  tbody.innerHTML = '';
+  mergeSelectedItems.forEach((item, i) => {
+    const tr = document.createElement('tr');
+    const initQty = item.deliveredQty || item.qty || '';
+    tr.innerHTML =
+      '<td class="text-mono text-xs">' + item.orderNo + '</td>' +
+      '<td>' + item.itemName + '</td>' +
+      '<td class="text-xs" style="font-family:monospace">' + (item.partNo || '-') + '</td>' +
+      '<td style="text-align:center">' + item.qty + ' ' + item.unit + '</td>' +
+      '<td style="text-align:center"><input type="number" class="merge-qty-input" id="mqty_' + i + '" value="' + initQty + '" min="0" placeholder="' + item.qty + '" style="width:60px;padding:3px 6px;font-size:12px;text-align:center;border:0.5px solid var(--warning);background:var(--bg3);border-radius:var(--radius);color:var(--text)"></td>' +
+      '<td class="text-xs">' + (item.purpose || '-') + '</td>' +
+      '<td><span class="badge badge-active" style="font-size:10px">' + item.vesselCode + '</span></td>';
+    tbody.appendChild(tr);
+  });
+  openModal('modal-merge-receipt');
+}
+
+function buildMergeReceiptHTML() {
+  const vessel = mergeSelectedItems[0]?.vesselCode || '';
+  const vesselNames = { VLK:'威可利 Valkyrie', WTN:'威騰 Wotan', VLN:'英勇 Valiant', WYF:'威風 WayFeng' };
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const printDate = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+
+  // 讀取 Modal 裡各行的出貨數量
+  const items = mergeSelectedItems.map((item, i) => {
+    const mqty = document.getElementById('mqty_' + i)?.value || item.qty;
+    return { ...item, mergeQty: mqty };
+  });
+
+  // 訂單號列表
+  const orderNos = [...new Set(items.map(i => i.orderNo))];
+
+  let html = `
+    <div style="max-width:720px;margin:0 auto;font-size:13px;line-height:1.6">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #1B4F7A">
+        <div>
+          ${getReceiptLogoHtml()}
+          <div style="font-size:15px;font-weight:600;color:#333;margin-top:4px">合併出貨簽收單 Combined Delivery Receipt</div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#666">
+          <div>列印日期 Print Date：${printDate}</div>
+          <div style="margin-top:4px;color:#1B4F7A;font-weight:600">船隻 Vessel：${vessel} ${vesselNames[vessel] || ''}</div>
+        </div>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-size:11px">
+        <tr>
+          <td style="color:#666;padding:3px 12px 3px 0;width:100px">涵蓋訂單</td>
+          <td style="font-family:monospace;font-size:12px">${orderNos.join('　')}</td>
+          <td style="color:#666;padding:3px 12px 3px 0;width:80px">品項數</td>
+          <td style="font-weight:600">${items.length}</td>
+        </tr>
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px">
+        <thead>
+          <tr style="background:#1B4F7A;color:#fff">
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:32px">#</th>
+            <th style="padding:8px 6px;border:1px solid #ccc">訂單號 Order No.</th>
+            <th style="padding:8px 6px;border:1px solid #ccc">品名 Item Name</th>
+            <th style="padding:8px 6px;border:1px solid #ccc">料號 Part No.</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:60px">申請數 Req.</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:60px;background:#856404;color:#fff">出貨數 Del.</th>
+            <th style="padding:8px 6px;border:1px solid #ccc">申請用途</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:48px">簽收 ✓</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+  items.forEach((item, i) => {
+    const bg = i % 2 === 0 ? '#f8f9fa' : '#fff';
+    html += `
+          <tr style="background:${bg}">
+            <td style="padding:7px 6px;border:1px solid #ddd;text-align:center;color:#666">${i+1}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;font-family:monospace;font-size:11px">${item.orderNo}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd">${item.itemName}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;font-family:monospace;font-size:11px">${item.partNo || '-'}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;text-align:center">${item.qty} ${item.unit}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;text-align:center;background:#FFFBEA;font-weight:600">${item.mergeQty} ${item.unit}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;font-size:11px">${item.purpose || '-'}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd"></td>
+          </tr>`;
+  });
+
+  html += `
+        </tbody>
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px">
+        <tr>
+          <td style="width:50%;padding-right:20px">
+            <div style="border:1px solid #ccc;border-radius:4px;padding:12px;min-height:80px">
+              <div style="color:#666;margin-bottom:6px;font-size:11px">簽收人 Received By：</div>
+              <div style="border-bottom:1px solid #333;margin-bottom:4px;min-height:36px"></div>
+              <div style="color:#666;font-size:11px">姓名 Name / 簽名 Signature</div>
+            </div>
+          </td>
+          <td style="width:25%;padding-right:20px">
+            <div style="border:1px solid #ccc;border-radius:4px;padding:12px;min-height:80px">
+              <div style="color:#666;margin-bottom:6px;font-size:11px">簽收日期 Date：</div>
+              <div style="border-bottom:1px solid #333;margin-bottom:4px;min-height:36px"></div>
+              <div style="color:#666;font-size:11px">YYYY-MM-DD</div>
+            </div>
+          </td>
+          <td style="width:25%">
+            <div style="border:1px solid #ccc;border-radius:4px;padding:12px;min-height:80px">
+              <div style="color:#666;margin-bottom:6px;font-size:11px">確認章 Stamp：</div>
+              <div style="min-height:48px"></div>
+            </div>
+          </td>
+        </tr>
+      </table>
+      <div style="text-align:center;font-size:10px;color:#aaa;padding-top:8px;border-top:1px solid #eee">
+        OEG Fleet System｜合併出貨簽收單 Combined Delivery Receipt｜${printDate}
+      </div>
+    </div>`;
+  return { html, items };
+}
+
+function printMergeReceiptDirect() {
+  const { html } = buildMergeReceiptHTML();
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"><title>合併出貨簽收單</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>body{font-family:'Noto Sans TC',Arial,sans-serif;margin:20px;background:#fff;color:#333}@media print{body{margin:10mm}}</style>
+  </head><body>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 600);
+}
+
+async function submitAndPrintMerge() {
+  const { html, items } = buildMergeReceiptHTML();
+
+  // 記錄出貨數量
+  showLoading('寫入出貨記錄中...');
+  let failCount = 0;
+  for (const item of items) {
+    const res = await api('updateDeliveredQty', {
+      vesselCode: item.vesselCode,
+      itemNo: item.itemNo,
+      deliveredQty: item.mergeQty
+    });
+    if (!res.success) failCount++;
+  }
+  hideLoading();
+  if (failCount > 0) {
+    alert('部分出貨記錄寫入失敗（' + failCount + ' 筆），簽收單仍繼續輸出。');
+  }
+
+  // 清除勾選
+  mergeSelectedItems = [];
+  document.querySelectorAll('.item-check').forEach(cb => { cb.checked = false; cb.closest('tr')?.classList.remove('merge-row-selected'); });
+  document.querySelectorAll('.merge-check[id^="chk-all-"]').forEach(cb => { cb.checked = false; });
+  const btn = document.getElementById('merge-receipt-btn');
+  if (btn) btn.style.display = 'none';
+
+  closeModal('modal-merge-receipt');
+
+  // 輸出 PDF
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"><title>合併出貨簽收單</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body{font-family:'Noto Sans TC',Arial,sans-serif;margin:0;padding:20px;background:#fff;color:#333}
+      @page{size:A4;margin:15mm}
+      @media print{body{padding:0}.no-print{display:none}}
+      .no-print{text-align:center;padding:12px;background:#f0f0f0;margin-bottom:16px;border-radius:4px;font-size:13px;color:#555}
+    </style>
+  </head><body>
+    <div class="no-print">📄 請按 Ctrl+P → 選擇「另存為 PDF」</div>
+    ${html}
+    <script>setTimeout(() => window.print(), 800);<\/script>
+  </body></html>`);
+  win.document.close();
+
+  // 重新整理訂單資料
+  _allOrdersData = null;
+  loadAllOrders();
+}
 function onDeliveryDraft(vesselCode, itemNo, originalQty, input) {
   const val = input.value.trim();
   const dqtySafe = itemNo.replace(/[^a-zA-Z0-9]/g, '_');
