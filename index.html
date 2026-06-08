@@ -3634,7 +3634,7 @@ async function checkSystemStatus() {
   }
 
   // 備品查詢開關
-  const stockEnabled = settings['stock_enabled'] === 'true';
+  const _se = settings['stock_enabled']; const stockEnabled = _se === true || _se === 'true' || _se === 'yes' || _se === 1;
   const queryDisabled = document.getElementById('cni-stock-query');
   const queryEnabled  = document.getElementById('cni-stock-query-active');
   const queryContent  = document.getElementById('stock-query-content');
