@@ -1578,7 +1578,7 @@ async function loadAllOrders(month) {
       (imgsHtml ? imgsHtml : '') +
       '<i class="ti ti-chevron-down" style="margin-left:auto;color:var(--text3);transition:transform 0.2s" id="ochev-' + oi + '" aria-hidden="true"></i></div>' +
       '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
-      '<th>#</th><th>品名</th><th>料號</th><th>數量</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>目前狀態</th><th>處理進度</th><th>操作</th>' +
+      '<th>#</th><th>品名</th><th>料號</th><th>數量</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>處理進度</th><th>操作</th>' +
       '</tr></thead><tbody>';
 
     order.items.forEach((d, ii) => {
@@ -1619,7 +1619,7 @@ async function loadAllOrders(month) {
         '<td style="font-size:11px">' + (d['purpose'] || '-') + '</td>' +
         '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
         '<td><span class="badge ' + badgeClass + '" id="ibadge-' + oi + '-' + ii + '">' + badgeText + '</span></td>' +
-        '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
+        
         progHtml +
         '<td><div class="flex gap4" id="ibtn-' + oi + '-' + ii + '">' + btns + '</div></td></tr>';
     });
