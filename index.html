@@ -215,6 +215,15 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 .prog-draft-badge{font-size:9px;background:var(--accent);color:#fff;padding:1px 4px;border-radius:3px;white-space:nowrap;margin-top:2px;flex-shrink:0}
 .prog-pending-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:4px;animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* ── Admin permissions ── */
+.perm-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:0.5px solid var(--border2);background:var(--bg3);color:var(--text2);transition:all 0.15s;user-select:none}
+.perm-chip:hover{border-color:var(--accent);color:var(--text)}
+.perm-chip.active{background:rgba(59,158,255,0.15);border-color:var(--accent);color:var(--accent)}
+.perm-chip-row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.login-switch-link{font-size:12px;color:var(--text3);text-align:center;margin-top:16px;cursor:pointer}
+.login-switch-link a{color:var(--accent)}
+.login-switch-link a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -326,6 +335,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       <div class="err-msg" id="forgot-err"></div>
       <div style="text-align:center;margin-top:12px"><span class="text-dim text-sm" style="cursor:pointer" onclick="switchLoginTab('login')">← 返回登入</span></div>
     </div>
+    <div class="login-switch-link" style="margin-top:16px;padding-top:12px;border-top:0.5px solid var(--border)"><a onclick="showScreen('admin-login')" style="cursor:pointer"><i class="ti ti-shield"></i> 前往管理員入口 Admin Back-Office</a></div>
   </div>
 </div>
 
@@ -499,6 +509,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       <div class="nav-section">
         <div class="nav-label">帳號管理</div>
         <div class="nav-item active" onclick="adminShowPage('admin-accounts')" id="ani-admin-accounts"><i class="ti ti-shield-check"></i>管理員帳號</div>
+        <div class="nav-item" onclick="adminShowPage('admin-pending')" id="ani-admin-pending"><i class="ti ti-shield-question"></i>管理員審核<span class="nav-badge" id="admin-pending-badge" style="display:none">0</span></div>
         <div class="nav-item" onclick="adminShowPage('crew-pending')" id="ani-crew-pending"><i class="ti ti-user-question"></i>待審核申請<span class="nav-badge" id="pending-badge" style="display:none">0</span></div>
         <div class="nav-item" onclick="adminShowPage('crew-accounts')" id="ani-crew-accounts"><i class="ti ti-users"></i>船員帳號</div>
       </div>
@@ -515,6 +526,10 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       <div id="aab-admin-accounts" class="action-bar">
         <div class="action-bar-left"><div class="action-bar-title">管理員帳號</div><div class="action-bar-sub">管理後台登入帳號</div></div>
         <div class="action-bar-right"><button class="btn btn-sm btn-primary" onclick="openModal('modal-add-admin')"><i class="ti ti-plus"></i>新增管理員</button></div>
+      </div>
+      <div id="aab-admin-pending" class="action-bar" style="display:none">
+        <div class="action-bar-left"><div class="action-bar-title">管理員帳號審核</div><div class="action-bar-sub">審核並設定模組權限</div></div>
+        <div class="action-bar-right"><button class="btn btn-sm" onclick="loadAdminPending()"><i class="ti ti-refresh"></i>重新整理</button></div>
       </div>
       <div id="aab-crew-pending" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">待審核申請</div><div class="action-bar-sub">審核帳號並分配船隻</div></div>
@@ -546,17 +561,13 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="page active" id="admin-page-admin-accounts">
           <div class="card">
             <table class="data-table">
-              <thead><tr><th>帳號</th><th>建立日期</th><th>狀態</th><th>操作</th></tr></thead>
-              <tbody id="admin-accounts-tbody">
-                <tr>
-                  <td class="text-mono">roach1104 <span class="text-dimmer text-xs">(預設)</span></td>
-                  <td>2026-06-03</td>
-                  <td><span class="badge badge-active">啟用</span></td>
-                  <td><button class="btn btn-xs" onclick="openModal('modal-change-admin-pw')"><i class="ti ti-lock"></i>修改密碼</button></td>
-                </tr>
-              </tbody>
+              <thead><tr><th>帳號</th><th>身份</th><th>模組權限</th><th>操作</th></tr></thead>
+              <tbody id="admin-accounts-tbody"></tbody>
             </table>
           </div>
+        </div>
+        <div class="page" id="admin-page-admin-pending">
+          <div class="card" id="admin-pending-card"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
         </div>
 
         <div class="page" id="admin-page-crew-pending">
@@ -632,13 +643,30 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 <!-- ADMIN LOGIN -->
 <div id="admin-login-screen" style="display:none" class="login-screen">
   <div class="login-card">
-    <div class="login-logo">OEG<span>.</span>Fleet</div>
+    <div class="login-logo">OEG<span>.</span>Fleet <span style="font-size:13px;color:var(--text2)">Admin</span></div>
     <div class="login-sub">管理員後台 Admin Back-Office</div>
-    <div class="form-group"><label class="form-label">帳號 Username</label><input type="text" id="adm-user" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
-    <div class="form-group"><label class="form-label">密碼 Password</label><input type="password" id="adm-pass" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
-    <button class="login-btn" onclick="doAdminLogin()">登入 Login</button>
-    <div class="err-msg" id="adm-err"></div>
-    <div style="text-align:center;margin-top:16px"><span class="text-dim text-sm" style="cursor:pointer" onclick="showScreen('login')">← 返回船員登入</span></div>
+    <div class="tab-switch">
+      <button class="tab-btn active" id="adm-tab-login" onclick="switchAdminLoginTab('login')">登入 Login</button>
+      <button class="tab-btn" id="adm-tab-reg" onclick="switchAdminLoginTab('register')">申請帳號 Register</button>
+    </div>
+    <!-- 管理員登入 -->
+    <div id="adm-login-form">
+      <div class="form-group"><label class="form-label">帳號 Username</label><input type="text" id="adm-user" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
+      <div class="form-group"><label class="form-label">密碼 Password</label><input type="password" id="adm-pass" onkeydown="if(event.key==='Enter')doAdminLogin()"></div>
+      <button class="login-btn" onclick="doAdminLogin()">登入 Login</button>
+      <div class="err-msg" id="adm-err"></div>
+    </div>
+    <!-- 管理員申請帳號 -->
+    <div id="adm-reg-form" style="display:none">
+      <div class="notice notice-info" style="margin-bottom:12px"><i class="ti ti-info-circle"></i><span>送出申請後，待主管審核後即可登入。</span></div>
+      <div class="form-group"><label class="form-label">帳號 <span class="req">*</span></label><input type="text" id="adm-reg-user" placeholder="限英數字"></div>
+      <div class="form-group"><label class="form-label">信箱 <span class="req">*</span></label><input type="email" id="adm-reg-email" placeholder="用於找回密碼"></div>
+      <div class="form-group"><label class="form-label">密碼 <span class="req">*</span></label><input type="password" id="adm-reg-pass" placeholder="至少 6 位"></div>
+      <div class="form-group"><label class="form-label">確認密碼 <span class="req">*</span></label><input type="password" id="adm-reg-pass2"></div>
+      <button class="login-btn" onclick="doAdminRegister()">送出申請 Submit</button>
+      <div class="err-msg" id="adm-reg-err"></div>
+    </div>
+    <div class="login-switch-link"><a onclick="showScreen('login')">← 返回船員登入</a></div>
   </div>
 </div>
 
@@ -1006,6 +1034,7 @@ function enterCrewApp() {
   const v = VESSELS[currentUser.vesselCode];
   document.getElementById('crew-vessel-chip').textContent = currentUser.vesselCode + ' — ' + v.en + ' ' + v.zh;
   document.getElementById('crew-username').textContent = currentUser.nameZh + ' ' + currentUser.nameEn;
+  setPageTitle(currentUser.vesselCode + ' - Vessel');
   showScreen('crew');
   buildOrderTable();
   loadSettings();
@@ -1064,6 +1093,7 @@ async function doChangePassword() {
 function doLogout() {
   clearOrderImages();
   clearRepairImages();
+  setPageTitle(null);
   currentUser = null;
   selectedVessel = null;
   document.getElementById('login-user').value = '';
@@ -1351,6 +1381,7 @@ function renderRepairHistory() {
 async function loadSettings() {
   const res = await api('getSettings', {});
   if (res.success) { settings = res.data; renderSettingTags(); updateStatusFilters(); }
+  return res;
 }
 
 function renderSettingTags() {
@@ -1413,20 +1444,226 @@ async function doAdminLogin() {
   hideLoading();
   if (!res.success) { errEl.textContent = res.message; return; }
   currentAdmin = { accountId };
+  currentAdminPermissions = res.permissions || [];
+  currentAdminIsRoot = res.isRoot || (accountId === 'roach1104');
   document.getElementById('admin-username').textContent = accountId;
+  setPageTitle('Admin');
   showScreen('admin');
-  loadSettings();
+  loadSettings().then(() => { loadAdminAccounts(); applyAdminPermissions(); });
   loadPendingAccounts();
+  loadAdminPending();
 }
 
+
+// ============================================================
+// ADMIN PERMISSIONS & REGISTRATION
+// ============================================================
+const ALL_PERMS = [
+  { key: 'orders',   label: '訂購單管理' },
+  { key: 'repairs',  label: '報修單管理' },
+  { key: 'accounts', label: '船員帳號' },
+  { key: 'settings', label: '系統設定' },
+];
+
+let currentAdminPermissions = []; // 登入後的權限
+let currentAdminIsRoot = false;
+
+function switchAdminLoginTab(tab) {
+  document.getElementById('adm-login-form').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('adm-reg-form').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('adm-tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('adm-tab-reg').classList.toggle('active', tab === 'register');
+}
+
+async function doAdminRegister() {
+  const errEl = document.getElementById('adm-reg-err');
+  errEl.textContent = '';
+  const accountId = document.getElementById('adm-reg-user').value.trim();
+  const email = document.getElementById('adm-reg-email').value.trim();
+  const pass = document.getElementById('adm-reg-pass').value;
+  const pass2 = document.getElementById('adm-reg-pass2').value;
+  if (!accountId || !email || !pass || !pass2) { errEl.textContent = '請填寫所有欄位'; return; }
+  if (pass.length < 6) { errEl.textContent = '密碼至少 6 位'; return; }
+  if (pass !== pass2) { errEl.textContent = '兩次密碼不一致'; return; }
+  if (!/^[a-zA-Z0-9]+$/.test(accountId)) { errEl.textContent = '帳號僅限英文與數字'; return; }
+  showLoading('送出申請中...');
+  const res = await api('adminRegister', { accountId, email, password: pass });
+  hideLoading();
+  if (res.success) {
+    errEl.style.color = 'var(--success)';
+    errEl.textContent = res.message;
+    setTimeout(() => switchAdminLoginTab('login'), 2000);
+  } else {
+    errEl.style.color = 'var(--danger)';
+    errEl.textContent = res.message;
+  }
+}
+
+// ── 管理員帳號列表（含權限設定）──────────────────────────────
+function loadAdminAccounts() {
+  const tbody = document.getElementById('admin-accounts-tbody');
+  if (!tbody) return;
+  const admins = settings.admin || [];
+  const permsMap = settings.admin_permissions || {};
+  tbody.innerHTML = '';
+
+  // roach1104（主帳號，永遠有全部權限）
+  const rootTr = document.createElement('tr');
+  rootTr.innerHTML = '<td class="text-mono">roach1104 <span class="text-dimmer text-xs">(主帳號)</span></td>' +
+    '<td><span class="badge badge-active">主管理員</span></td>' +
+    '<td><span class="text-dim text-sm">全部權限</span></td>' +
+    '<td><button class="btn btn-xs" onclick="openModal(\'modal-change-admin-pw\')"><i class="ti ti-lock"></i>修改密碼</button></td>';
+  tbody.appendChild(rootTr);
+
+  // 其他管理員
+  admins.filter(a => a !== 'roach1104').forEach(accountId => {
+    const perms = permsMap[accountId] || [];
+    const tr = document.createElement('tr');
+    const permChips = ALL_PERMS.map(p =>
+      '<span class="perm-chip ' + (perms.includes(p.key) ? 'active' : '') + '" ' +
+      'onclick="toggleAdminPerm(\'' + accountId + '\',\'' + p.key + '\',this)">' + p.label + '</span>'
+    ).join('');
+    tr.innerHTML = '<td class="text-mono">' + accountId + '</td>' +
+      '<td><span class="badge badge-info">管理員</span></td>' +
+      '<td><div class="perm-chip-row" id="perm-row-' + accountId + '">' + permChips + '</div></td>' +
+      '<td><button class="btn btn-xs btn-danger" onclick="removeAdmin(\'' + accountId + '\')"><i class="ti ti-trash"></i>移除</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+async function toggleAdminPerm(accountId, permKey, chipEl) {
+  const permsMap = settings.admin_permissions || {};
+  const perms = [...(permsMap[accountId] || [])];
+  const idx = perms.indexOf(permKey);
+  if (idx >= 0) perms.splice(idx, 1);
+  else perms.push(permKey);
+  if (!settings.admin_permissions) settings.admin_permissions = {};
+  settings.admin_permissions[accountId] = perms;
+  chipEl.classList.toggle('active', perms.includes(permKey));
+  await api('updateAdminPermissions', { accountId, permissions: perms });
+}
+
+async function removeAdmin(accountId) {
+  if (!confirm('確定移除管理員帳號「' + accountId + '」？')) return;
+  settings.admin = (settings.admin || []).filter(a => a !== accountId);
+  if (settings.admin_permissions) delete settings.admin_permissions[accountId];
+  await saveSettings();
+  loadAdminAccounts();
+}
+
+// ── 管理員待審核 ─────────────────────────────────────────────
+async function loadAdminPending() {
+  const el = document.getElementById('admin-pending-card');
+  if (!el) return;
+  el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
+  const res = await api('getSettings', {});
+  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
+  const pending = res.data.admin_pending || [];
+  const badge = document.getElementById('admin-pending-badge');
+  if (badge) { badge.textContent = pending.length; badge.style.display = pending.length > 0 ? 'inline' : 'none'; }
+  if (pending.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">目前沒有待審核的管理員申請</div>'; return; }
+
+  let html = '<table class="data-table"><thead><tr><th>帳號</th><th>信箱</th><th>申請時間</th><th>模組權限</th><th>操作</th></tr></thead><tbody>';
+  pending.forEach(ap => {
+    const permChips = ALL_PERMS.map(p =>
+      '<span class="perm-chip" id="aperm-' + ap.accountId + '-' + p.key + '" onclick="toggleApprovalPerm(\'' + ap.accountId + '\',\'' + p.key + '\',this)">' + p.label + '</span>'
+    ).join('');
+    html += '<tr id="admin-pending-row-' + ap.accountId + '">' +
+      '<td class="text-mono">' + ap.accountId + '</td>' +
+      '<td>' + (ap.email || '-') + '</td>' +
+      '<td class="text-xs">' + (ap.createdAt ? String(ap.createdAt).slice(0,16) : '-') + '</td>' +
+      '<td><div class="perm-chip-row">' + permChips + '</div></td>' +
+      '<td><div class="flex gap4">' +
+      '<button class="btn btn-xs btn-success" onclick="approveAdminAccount(\'' + ap.accountId + '\')"><i class="ti ti-check"></i>核准</button>' +
+      '<button class="btn btn-xs btn-danger" onclick="rejectAdminAccount(\'' + ap.accountId + '\')"><i class="ti ti-x"></i>拒絕</button>' +
+      '</div></td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// 暫存審核中的權限選擇
+let _approvalPerms = {};
+function toggleApprovalPerm(accountId, permKey, chipEl) {
+  if (!_approvalPerms[accountId]) _approvalPerms[accountId] = [];
+  const perms = _approvalPerms[accountId];
+  const idx = perms.indexOf(permKey);
+  if (idx >= 0) perms.splice(idx, 1);
+  else perms.push(permKey);
+  chipEl.classList.toggle('active', perms.includes(permKey));
+}
+
+async function approveAdminAccount(accountId) {
+  const perms = _approvalPerms[accountId] || [];
+  showLoading('審核中...');
+  const res = await api('approveAdmin', { accountId, permissions: perms, approvedBy: currentAdmin?.accountId });
+  hideLoading();
+  if (res.success) {
+    // 更新本地 settings
+    if (!settings.admin) settings.admin = [];
+    settings.admin.push(accountId);
+    if (!settings.admin_permissions) settings.admin_permissions = {};
+    settings.admin_permissions[accountId] = perms;
+    delete _approvalPerms[accountId];
+    loadAdminPending();
+    loadAdminAccounts();
+  } else { alert('失敗：' + res.message); }
+}
+
+async function rejectAdminAccount(accountId) {
+  if (!confirm('確定拒絕「' + accountId + '」的管理員申請？')) return;
+  showLoading('處理中...');
+  const res = await api('rejectAdmin', { accountId });
+  hideLoading();
+  if (res.success) { delete _approvalPerms[accountId]; loadAdminPending(); }
+  else { alert('失敗：' + res.message); }
+}
+
+// ── 登入後根據權限控制 sidebar ──────────────────────────────
+function applyAdminPermissions() {
+  if (currentAdminIsRoot) return; // 主帳號不限制
+  const permToNav = {
+    orders:   ['ani-orders'],
+    repairs:  ['ani-repairs'],
+    accounts: ['ani-crew-pending','ani-crew-accounts'],
+    settings: [],
+  };
+  // 管理員帳號和管理員審核只有 root 能看
+  ['ani-admin-accounts','ani-admin-pending'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  // 根據權限顯示/隱藏
+  Object.keys(permToNav).forEach(perm => {
+    const hasP = currentAdminPermissions.includes(perm);
+    permToNav[perm].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = hasP ? '' : 'none';
+    });
+  });
+  // 跳到第一個有權限的頁面
+  const firstPerm = currentAdminPermissions[0];
+  if (firstPerm === 'orders') adminShowPage('orders');
+  else if (firstPerm === 'repairs') adminShowPage('repairs');
+  else if (firstPerm === 'accounts') adminShowPage('crew-pending');
+  else adminShowPage('admin-accounts');
+}
+
+// ── 動態 title ───────────────────────────────────────────────
+function setPageTitle(suffix) {
+  document.title = suffix ? 'OEG Fleet - ' + suffix : 'OEG Fleet';
+}
 function doAdminLogout() {
   currentAdmin = null;
+  currentAdminPermissions = [];
+  currentAdminIsRoot = false;
+  setPageTitle(null);
   document.getElementById('adm-user').value = '';
   document.getElementById('adm-pass').value = '';
   showScreen('login');
 }
 
-const ADMIN_PAGES = ['admin-accounts','crew-pending','crew-accounts','orders','repairs'];
+const ADMIN_PAGES = ['admin-accounts','admin-pending','crew-pending','crew-accounts','orders','repairs'];
 
 function adminShowPage(name) {
   ADMIN_PAGES.forEach(p => {
@@ -1435,6 +1672,7 @@ function adminShowPage(name) {
     if (ab) ab.style.display = p === name ? 'flex' : 'none';
     document.getElementById('ani-' + p)?.classList.toggle('active', p === name);
   });
+  if (name === 'admin-pending') loadAdminPending();
   if (name === 'crew-pending') loadPendingAccounts();
   if (name === 'crew-accounts') loadCrewAccounts();
   if (name === 'orders') { _allOrdersData = null; _allOrdersMonth = null; loadAllOrders(); }
