@@ -3572,8 +3572,8 @@ async function loadSystemSettings() {
 }
 
 function renderSystemSettings() {
-  const stockEnabled = _sysSettings['stock_enabled'] === 'true';
-  const maintenance  = _sysSettings['maintenance_mode'] === 'true';
+  const stockEnabled = _sysSettings['stock_enabled'] === 'true' || _sysSettings['stock_enabled'] === true || String(_sysSettings['stock_enabled']).toLowerCase() === 'true';
+  const maintenance  = _sysSettings['maintenance_mode'] === 'true' || _sysSettings['maintenance_mode'] === true || String(_sysSettings['maintenance_mode']).toLowerCase() === 'true';
   const msg          = _sysSettings['maintenance_message'] || '系統維護中，請稍後再試。';
 
   // 備品查詢狀態
