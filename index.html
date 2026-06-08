@@ -1275,10 +1275,11 @@ function enterCrewApp() {
   document.getElementById('crew-vessel-chip').textContent = currentUser.vesselCode + ' — ' + v.en + ' ' + v.zh;
   document.getElementById('crew-username').textContent = currentUser.nameZh + ' ' + currentUser.nameEn;
   setPageTitle(currentUser.vesselCode + ' - Vessel');
+  const sysOk = await checkSystemStatus();
+  if (sysOk === false) return; // 維護模式，不繼續
   showScreen('crew');
   buildOrderTable();
   loadSettings();
-  checkSystemStatus();
   const reporter = document.getElementById('r-reporter');
   if (reporter) reporter.value = currentUser.nameZh + ' ' + currentUser.nameEn;
 }
