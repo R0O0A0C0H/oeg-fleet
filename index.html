@@ -3572,8 +3572,8 @@ async function loadSystemSettings() {
 }
 
 function renderSystemSettings() {
-  const stockEnabled = _sysSettings['stock_enabled'] === 'true' || _sysSettings['stock_enabled'] === true || String(_sysSettings['stock_enabled']).toLowerCase() === 'true';
-  const maintenance  = _sysSettings['maintenance_mode'] === 'true' || _sysSettings['maintenance_mode'] === true || String(_sysSettings['maintenance_mode']).toLowerCase() === 'true';
+  const _se2 = _sysSettings['stock_enabled']; const stockEnabled = _se2 === true || _se2 === 'true' || _se2 === 'yes' || _se2 === 1 || _se2 === '1';
+  const _mm2 = _sysSettings['maintenance_mode']; const maintenance  = _mm2 === true || _mm2 === 'true' || _mm2 === 'yes' || _mm2 === 1 || _mm2 === '1';
   const msg          = _sysSettings['maintenance_message'] || '系統維護中，請稍後再試。';
 
   // 備品查詢狀態
@@ -3596,8 +3596,9 @@ function renderSystemSettings() {
 }
 
 async function setSystemSetting(key, value) {
+  const sendVal = (value === 'true' || value === true) ? 'yes' : (value === 'false' || value === false) ? 'no' : value;
   showLoading('更新設定中...');
-  const r = await api('setSystemSetting', { key, value });
+  const r = await api('setSystemSetting', { key, value: sendVal });
   hideLoading();
   if (r.success) { await loadSystemSettings(); }
   else alert('更新失敗：' + r.message);
