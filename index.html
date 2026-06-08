@@ -277,6 +277,21 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
   </div>
 </div>
 
+<!-- 拒絕備品申請 Modal -->
+<div class="modal-overlay" id="modal-reject-stock">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-x"></i> 拒絕申請</div>
+    <div class="form-group">
+      <label class="form-label">拒絕原因</label>
+      <textarea id="reject-reason" placeholder="請填寫拒絕原因（選填）" style="min-height:80px"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-reject-stock')">取消</button>
+      <button class="btn btn-sm btn-danger" onclick="confirmRejectStock()"><i class="ti ti-x"></i>確認拒絕</button>
+    </div>
+  </div>
+</div>
+
 <!-- Loading -->
 <div class="loading-overlay" id="loading">
   <div class="loading-box">
@@ -393,6 +408,8 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="nav-label">報修作業</div>
         <div class="nav-item" onclick="crewShowPage('repair-new')" id="cni-repair-new"><i class="ti ti-tool"></i>新增報修單</div>
         <div class="nav-item" onclick="crewShowPage('repair-history')" id="cni-repair-history"><i class="ti ti-clipboard-list"></i>報修紀錄</div>
+        <div class="nav-item" onclick="crewShowPage('stock-apply');loadStockItemsForCrew()" id="cni-stock-apply"><i class="ti ti-package-import"></i>備品申請</div>
+        <div class="nav-item" onclick="crewShowPage('stock-history');loadMyStockHistory()" id="cni-stock-history"><i class="ti ti-history"></i>申請紀錄</div>
       </div>
     </div>
     <div class="content">
@@ -511,6 +528,53 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           <div class="month-tabs" id="repair-history-tabs"></div>
           <div class="card"><div id="repair-history-content"><div class="text-dim text-sm" style="padding:20px;text-align:center">載入中...</div></div></div>
         </div>
+
+        <!-- 備品申請 -->
+        <div class="page" id="crew-page-stock-apply">
+          <div class="notice notice-info"><i class="ti ti-info-circle"></i>搜尋備品後選擇品項，填寫用途說明後送出申請。</div>
+          <div class="card">
+            <div class="form-group">
+              <label class="form-label">搜尋備品</label>
+              <input type="text" id="stock-search-input" placeholder="輸入品項名稱、廠牌或型號..." oninput="filterStockItems(this.value)">
+            </div>
+            <div id="stock-item-list" style="max-height:280px;overflow-y:auto;margin-bottom:12px;border:0.5px solid var(--border);border-radius:var(--radius);">
+              <div class="text-dim text-sm" style="padding:12px;text-align:center">請先搜尋備品</div>
+            </div>
+            <div id="stock-selected-item" style="display:none;background:var(--bg3);border:0.5px solid var(--accent);border-radius:var(--radius);padding:12px;margin-bottom:12px;">
+              <div class="flex gap8" style="margin-bottom:6px;">
+                <i class="ti ti-box" style="color:var(--accent)"></i>
+                <span class="bold" id="sa-item-name">-</span>
+                <span class="badge badge-info" id="sa-item-brand">-</span>
+              </div>
+              <div class="text-sm text-dim flex gap12">
+                <span>型號：<span id="sa-item-model">-</span></span>
+                <span>庫存：<span id="sa-item-qty" class="text-success bold">-</span></span>
+                <span>地點：<span id="sa-item-location">-</span></span>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">申請數量 <span class="req">*</span></label>
+                <input type="number" id="sa-qty" value="1" min="1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">用途說明 <span class="req">*</span></label>
+                <input type="text" id="sa-purpose" placeholder="例：更換主機冷卻水泵">
+              </div>
+            </div>
+            <div class="err-msg" id="sa-err"></div>
+            <button class="btn btn-primary w100" onclick="submitStockApply()" id="sa-submit-btn" disabled>
+              <i class="ti ti-send"></i>送出申請
+            </button>
+          </div>
+        </div>
+
+        <!-- 備品申請紀錄 -->
+        <div class="page" id="crew-page-stock-history">
+          <div class="card">
+            <div id="stock-history-content"><div class="text-dim text-sm" style="padding:20px;text-align:center">載入中...</div></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -538,6 +602,10 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       <div class="nav-section">
         <div class="nav-label">報修管理</div>
         <div class="nav-item" onclick="adminShowPage('repairs')" id="ani-repairs"><i class="ti ti-tool"></i>報修單管理</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">備品管理</div>
+        <div class="nav-item" onclick="adminShowPage('stock-applications')" id="ani-stock-applications"><i class="ti ti-package-import"></i>備品申請審核<span class="nav-badge" id="stock-pending-badge" style="display:none">0</span></div>
       </div>
       <div class="nav-section">
         <div class="nav-label">系統</div>
@@ -582,11 +650,48 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         </div>
       </div>
 
+      <div id="aab-stock-applications" class="action-bar" style="display:none">
+        <div class="action-bar-left">
+          <div class="action-bar-title">備品申請審核</div>
+          <div class="action-bar-sub">審核通過後自動扣除倉庫庫存</div>
+        </div>
+        <div class="action-bar-right">
+          <button class="btn btn-sm" onclick="loadStockApplications()"><i class="ti ti-refresh"></i>重新整理</button>
+        </div>
+      </div>
       <div id="aab-sys-settings" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">系統設定</div><div class="action-bar-sub">LOGO 與系統外觀設定</div></div>
         <div class="action-bar-right"></div>
       </div>
       <div class="page-body">
+        <div class="page" id="admin-page-stock-applications">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+            <select id="stock-filter-status" onchange="loadStockApplications()" style="width:auto;font-size:12px;padding:5px 8px;">
+              <option value="">全部狀態</option>
+              <option value="待審核">待審核</option>
+              <option value="已核准">已核准</option>
+              <option value="已拒絕">已拒絕</option>
+            </select>
+            <select id="stock-filter-vessel" onchange="loadStockApplications()" style="width:auto;font-size:12px;padding:5px 8px;">
+              <option value="">全部船隻</option>
+            </select>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>申請單號</th><th>申請時間</th><th>船隻</th><th>申請人</th>
+                  <th>品項名稱</th><th>廠牌</th><th>數量</th><th>用途說明</th>
+                  <th>狀態</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="stock-app-tbody">
+                <tr><td colspan="10" class="text-dim" style="text-align:center;padding:20px">載入中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="page active" id="admin-page-admin-accounts">
           <div class="card">
             <table class="data-table">
@@ -1250,7 +1355,7 @@ function backToLogin() {
   switchLoginTab('login');
 }
 
-const CREW_PAGES = ['order-new','order-history','repair-new','repair-history'];
+const CREW_PAGES = ['order-new','order-history','repair-new','repair-history','stock-apply','stock-history'];
 
 function crewShowPage(name) {
   CREW_PAGES.forEach(p => {
@@ -1261,6 +1366,8 @@ function crewShowPage(name) {
   });
   if (name === 'order-history') { _orderHistoryData = null; _orderHistoryMonth = null; loadOrderHistory(); }
   if (name === 'repair-history') { _repairHistoryData = null; _repairHistoryMonth = null; loadRepairHistory(); }
+  if (name === 'stock-apply') loadStockItemsForCrew();
+  if (name === 'stock-history') loadMyStockHistory();
   if (name === 'repair-new') {
     const reporter = document.getElementById('r-reporter');
     if (reporter && currentUser) reporter.value = currentUser.nameZh + ' ' + currentUser.nameEn;
@@ -3253,6 +3360,207 @@ if (location.search.includes('admin')) { showScreen('admin-login'); }
 else { showScreen('login'); }
 
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(e => console.log('SW:', e)); }
+
+// ══════════════════════════════════════════════════════
+//  備品申請模組
+// ══════════════════════════════════════════════════════
+let _stockItems = [];
+let _selectedStockItem = null;
+let _rejectAppId = null;
+
+// ── 船員：取得備品清單 ─────────────────────────────────
+async function loadStockItemsForCrew() {
+  const el = document.getElementById('stock-item-list');
+  if (!el) return;
+  el.innerHTML = '<div class="text-dim text-sm" style="padding:12px;text-align:center">載入中...</div>';
+  const r = await api('getStockItems');
+  if (!r.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:12px;text-align:center">載入失敗</div>'; return; }
+  _stockItems = (r.items || []).filter(i => Number(i['現有數量']) > 0);
+  renderStockItemList(_stockItems);
+}
+
+function filterStockItems(q) {
+  const filtered = q ? _stockItems.filter(i =>
+    (i['品項名稱']||'').includes(q) || (i['廠牌']||'').includes(q) || (i['型號']||'').includes(q)
+  ) : _stockItems;
+  renderStockItemList(filtered);
+}
+
+function renderStockItemList(items) {
+  const el = document.getElementById('stock-item-list');
+  if (!el) return;
+  if (!items.length) { el.innerHTML = '<div class="text-dim text-sm" style="padding:12px;text-align:center">沒有符合的備品</div>'; return; }
+  el.innerHTML = items.map(item => {
+    const qty = Number(item['現有數量']) || 0;
+    const min = Number(item['安全庫存']) || 0;
+    const qtyColor = qty <= 0 ? 'var(--danger)' : qty <= min ? 'var(--warning)' : 'var(--success)';
+    const safeItem = JSON.stringify(item).replace(/\\/g,'\\\\').replace(/"/g,'&quot;');
+    return `<div onclick="selectStockItem(JSON.parse(this.dataset.item))" data-item="${safeItem}"
+      style="padding:10px 12px;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background 0.15s;"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <div class="flex gap8">
+        <span class="bold" style="font-size:13px">${item['品項名稱']}</span>
+        <span class="badge badge-info" style="font-size:10px">${item['廠牌']}</span>
+        ${item['型號'] ? `<span class="text-dim text-xs">${item['型號']}</span>` : ''}
+      </div>
+      <div class="flex gap12" style="margin-top:4px">
+        <span class="text-xs text-dim">庫存：<span style="color:${qtyColor};font-weight:500">${qty}</span> ${item['單位']||'個'}</span>
+        ${item['存放地點'] ? `<span class="text-xs text-dim">📍 ${item['存放地點']}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectStockItem(item) {
+  _selectedStockItem = item;
+  document.getElementById('stock-selected-item').style.display = 'block';
+  document.getElementById('sa-item-name').textContent = item['品項名稱'];
+  document.getElementById('sa-item-brand').textContent = item['廠牌'];
+  document.getElementById('sa-item-model').textContent = item['型號'] || '-';
+  document.getElementById('sa-item-qty').textContent = item['現有數量'] + ' ' + (item['單位']||'個');
+  document.getElementById('sa-item-location').textContent = item['存放地點'] || '-';
+  document.getElementById('sa-submit-btn').disabled = false;
+  document.getElementById('sa-qty').max = item['現有數量'];
+}
+
+async function submitStockApply() {
+  if (!_selectedStockItem) { document.getElementById('sa-err').textContent = '請選擇備品'; return; }
+  const qty = parseInt(document.getElementById('sa-qty').value) || 1;
+  const purpose = document.getElementById('sa-purpose').value.trim();
+  if (!purpose) { document.getElementById('sa-err').textContent = '請填寫用途說明'; return; }
+  if (qty > Number(_selectedStockItem['現有數量'])) { document.getElementById('sa-err').textContent = '申請數量超過庫存'; return; }
+  document.getElementById('sa-err').textContent = '';
+  document.getElementById('sa-submit-btn').disabled = true;
+  showLoading('送出申請中...');
+  const r = await api('applyStock', {
+    vessel:    currentUser?.vesselCode || '',
+    applicant: currentUser ? (currentUser.nameZh + ' ' + currentUser.nameEn) : '',
+    barcode:   _selectedStockItem['條碼'],
+    itemName:  _selectedStockItem['品項名稱'],
+    brand:     _selectedStockItem['廠牌'],
+    qty, purpose
+  });
+  hideLoading();
+  document.getElementById('sa-submit-btn').disabled = false;
+  if (r.success) {
+    alert('✅ 申請已送出！\n申請單號：' + r.appId + '\n\n管理員審核後庫存將自動扣除。');
+    _selectedStockItem = null;
+    document.getElementById('stock-selected-item').style.display = 'none';
+    document.getElementById('stock-search-input').value = '';
+    document.getElementById('sa-qty').value = 1;
+    document.getElementById('sa-purpose').value = '';
+    document.getElementById('sa-submit-btn').disabled = true;
+    loadStockItemsForCrew();
+  } else {
+    document.getElementById('sa-err').textContent = r.message || '送出失敗';
+  }
+}
+
+async function loadMyStockHistory() {
+  const el = document.getElementById('stock-history-content');
+  if (!el) return;
+  el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">載入中...</div>';
+  const username = currentUser ? (currentUser.nameZh + ' ' + currentUser.nameEn) : '';
+  const r = await api('getMyStockApplications', { username });
+  if (!r.success || !r.applications.length) {
+    el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無申請紀錄</div>';
+    return;
+  }
+  el.innerHTML = `<table class="data-table">
+    <thead><tr><th>申請單號</th><th>申請時間</th><th>品項名稱</th><th>數量</th><th>用途說明</th><th>狀態</th></tr></thead>
+    <tbody>${r.applications.map(a => {
+      const sc = a['狀態'] === '已核准' ? 'badge-approved' : a['狀態'] === '已拒絕' ? 'badge-rejected' : 'badge-pending';
+      return `<tr>
+        <td class="text-mono text-xs">${a['申請單號']}</td>
+        <td class="text-xs text-dim">${a['申請時間']}</td>
+        <td>${a['品項名稱']}</td>
+        <td>${a['申請數量']} <span class="badge badge-info" style="font-size:10px">${a['廠牌']||''}</span></td>
+        <td class="text-sm">${a['用途說明']||'-'}</td>
+        <td><span class="badge ${sc}">${a['狀態']}</span>${a['拒絕原因']?'<div class="text-xs text-dim" style="margin-top:2px">'+a['拒絕原因']+'</div>':''}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+// ── 管理端：備品申請審核 ──────────────────────────────
+async function loadStockApplications() {
+  const tbody = document.getElementById('stock-app-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="10" class="text-dim" style="text-align:center;padding:20px">載入中...</td></tr>';
+  const r = await api('getStockApplications');
+  if (!r.success) { tbody.innerHTML = '<tr><td colspan="10" class="text-dim" style="text-align:center;padding:20px">載入失敗</td></tr>'; return; }
+
+  const statusFilter = document.getElementById('stock-filter-status')?.value || '';
+  const vesselFilter = document.getElementById('stock-filter-vessel')?.value || '';
+
+  const vessels = [...new Set((r.applications||[]).map(a => a['船隻']).filter(Boolean))];
+  const vesselSel = document.getElementById('stock-filter-vessel');
+  if (vesselSel) {
+    const cur = vesselSel.value;
+    vesselSel.innerHTML = '<option value="">全部船隻</option>' + vessels.map(v => `<option value="${v}" ${v===cur?'selected':''}>${v}</option>`).join('');
+  }
+
+  let apps = r.applications || [];
+  if (statusFilter) apps = apps.filter(a => a['狀態'] === statusFilter);
+  if (vesselFilter) apps = apps.filter(a => a['船隻'] === vesselFilter);
+
+  const pendingCount = (r.applications||[]).filter(a => a['狀態'] === '待審核').length;
+  const badge = document.getElementById('stock-pending-badge');
+  if (badge) { badge.textContent = pendingCount; badge.style.display = pendingCount > 0 ? '' : 'none'; }
+
+  if (!apps.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-dim" style="text-align:center;padding:20px">沒有申請紀錄</td></tr>';
+    return;
+  }
+
+  const adminName = document.getElementById('admin-username')?.textContent || 'admin';
+  tbody.innerHTML = apps.map(a => {
+    const isPending = a['狀態'] === '待審核';
+    const sc = a['狀態'] === '已核准' ? 'badge-approved' : a['狀態'] === '已拒絕' ? 'badge-rejected' : 'badge-pending';
+    return `<tr>
+      <td class="text-mono text-xs">${a['申請單號']}</td>
+      <td class="text-xs text-dim">${a['申請時間']}</td>
+      <td><span class="badge badge-active">${a['船隻']||'-'}</span></td>
+      <td>${a['申請人']}</td>
+      <td><span class="bold">${a['品項名稱']}</span></td>
+      <td><span class="badge badge-info">${a['廠牌']||'-'}</span></td>
+      <td class="text-mono">${a['申請數量']}</td>
+      <td class="text-sm">${a['用途說明']||'-'}</td>
+      <td><span class="badge ${sc}">${a['狀態']}</span>${a['審核人']?'<div class="text-xs text-dim">by '+a['審核人']+'</div>':''}${a['拒絕原因']?'<div class="text-xs text-dim">'+a['拒絕原因']+'</div>':''}</td>
+      <td>${isPending ? `<div class="flex gap4">
+        <button class="btn btn-xs btn-success" onclick="approveStockApp('${a['申請單號']}','${adminName}')"><i class="ti ti-check"></i>核准</button>
+        <button class="btn btn-xs btn-danger" onclick="openRejectStock('${a['申請單號']}')"><i class="ti ti-x"></i>拒絕</button>
+      </div>` : '-'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function approveStockApp(appId, operator) {
+  if (!confirm('確定核准申請 ' + appId + '？\n核准後庫存將自動扣除。')) return;
+  showLoading('審核中，扣除庫存...');
+  const r = await api('approveStock', { appId, operator });
+  hideLoading();
+  if (r.success) { alert('✅ 已核准，庫存已自動扣除！'); loadStockApplications(); }
+  else alert('操作失敗：' + r.message);
+}
+
+function openRejectStock(appId) {
+  _rejectAppId = appId;
+  document.getElementById('reject-reason').value = '';
+  openModal('modal-reject-stock');
+}
+
+async function confirmRejectStock() {
+  const reason = document.getElementById('reject-reason').value.trim();
+  const adminName = document.getElementById('admin-username')?.textContent || 'admin';
+  closeModal('modal-reject-stock');
+  showLoading('處理中...');
+  const r = await api('rejectStock', { appId: _rejectAppId, reason, operator: adminName });
+  hideLoading();
+  if (r.success) loadStockApplications();
+  else alert('操作失敗：' + r.message);
+}
+
 </script>
 </body>
 </html>
