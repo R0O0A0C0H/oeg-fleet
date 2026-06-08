@@ -567,6 +567,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           <button class="btn btn-sm btn-success" id="submit-order-progress-btn" style="display:none" onclick="submitAllOrderProgress()"><i class="ti ti-send"></i>送出進度更新</button>
           <button class="btn btn-sm" id="submit-delivery-btn" style="display:none;background:rgba(243,156,18,0.15);border-color:rgba(243,156,18,0.4);color:var(--warning)" onclick="submitAllDelivery()"><i class="ti ti-package"></i>送出出貨記錄</button>
           <button class="btn btn-sm" id="merge-receipt-btn" style="display:none;border-color:rgba(52,152,219,0.4);color:var(--info)" onclick="openMergeReceiptModal()"><i class="ti ti-files"></i>合併出單</button>
+          <button class="btn btn-sm" id="pick-list-btn" style="display:none;border-color:rgba(155,89,182,0.4);color:#9b59b6" onclick="openPickListModal()"><i class="ti ti-list-check"></i>撿貨單</button>
           <button class="btn btn-sm" onclick="toggleSettingsPanel('order-settings-panel')"><i class="ti ti-settings"></i>狀態／操作設定</button>
           <button class="btn btn-sm" onclick="_allOrdersData=null;loadAllOrders()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
@@ -741,6 +742,32 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 </div>
 
 
+
+<!-- 撿貨單 Modal -->
+<div class="modal-overlay" id="modal-pick-list" style="z-index:400">
+  <div class="modal" style="width:760px;max-width:96vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-title"><i class="ti ti-list-check"></i> 撿貨單 Pick List</div>
+    <div class="notice notice-info" style="margin-bottom:12px">
+      <i class="ti ti-info-circle"></i>
+      <span>撿貨單供倉庫人員撿貨使用，不含簽收欄。庫位欄可列印後手動填寫。</span>
+    </div>
+    <table class="data-table" id="pick-list-table">
+      <thead>
+        <tr>
+          <th>#</th><th>訂單號</th><th>品名</th><th>料號</th>
+          <th style="text-align:center">數量</th>
+          <th>申請用途</th><th>船隻</th>
+        </tr>
+      </thead>
+      <tbody id="pick-list-tbody"></tbody>
+    </table>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-pick-list')">取消</button>
+      <button class="btn btn-sm" onclick="printPickListDirect()"><i class="ti ti-printer"></i> 列印</button>
+      <button class="btn btn-sm btn-primary" onclick="downloadPickListPDF()"><i class="ti ti-download"></i> 下載 PDF</button>
+    </div>
+  </div>
+</div>
 <!-- 合併出單 Modal -->
 <div class="modal-overlay" id="modal-merge-receipt" style="z-index:400">
   <div class="modal" style="width:820px;max-width:96vw;max-height:92vh;overflow-y:auto">
@@ -2410,6 +2437,155 @@ async function downloadReceiptPDF() {
 // 出貨數量暫存與送出
 // ============================================================
 
+
+// ============================================================
+// 撿貨單 Pick List
+// ============================================================
+function openPickListModal() {
+  if (mergeSelectedItems.length === 0) { alert('請先勾選要撿貨的品項'); return; }
+  const tbody = document.getElementById('pick-list-tbody');
+  tbody.innerHTML = '';
+  mergeSelectedItems.forEach((item, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td class="text-mono text-xs" style="text-align:center">' + (i+1) + '</td>' +
+      '<td class="text-mono text-xs">' + item.orderNo + '</td>' +
+      '<td>' + item.itemName + '</td>' +
+      '<td class="text-xs" style="font-family:monospace">' + (item.partNo || '-') + '</td>' +
+      '<td style="text-align:center">' + item.qty + ' ' + item.unit + '</td>' +
+      '<td class="text-xs">' + (item.purpose || '-') + '</td>' +
+      '<td style="text-align:center"><span class="badge badge-active" style="font-size:10px">' + item.vesselCode + '</span></td>';
+    tbody.appendChild(tr);
+  });
+  openModal('modal-pick-list');
+}
+
+function buildPickListHTML() {
+  const vessel = mergeSelectedItems[0]?.vesselCode || '';
+  const vesselNames = { VLK:'威可利 Valkyrie', WTN:'威騰 Wotan', VLN:'英勇 Valiant', WYF:'威風 WayFeng' };
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const printDate = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+  const printTime = pad(now.getHours()) + ':' + pad(now.getMinutes());
+  const orderNos = [...new Set(mergeSelectedItems.map(i => i.orderNo))];
+
+  let html = `
+    <div style="max-width:720px;margin:0 auto;font-size:13px;line-height:1.6">
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #1B4F7A">
+        <div>
+          ${getReceiptLogoHtml()}
+          <div style="font-size:15px;font-weight:600;color:#333;margin-top:4px">撿貨單 Pick List</div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#666">
+          <div>列印時間 Printed：${printDate} ${printTime}</div>
+          <div style="margin-top:4px;color:#1B4F7A;font-weight:600">船隻 Vessel：${vessel} ${vesselNames[vessel] || ''}</div>
+          <div style="margin-top:2px;color:#666">品項數 Items：${mergeSelectedItems.length}</div>
+        </div>
+      </div>
+
+      <!-- 涵蓋訂單 -->
+      <div style="margin-bottom:12px;font-size:12px;color:#666">
+        涵蓋訂單 Orders：<span style="font-family:monospace;color:#1B4F7A;font-weight:600">${orderNos.join('　')}</span>
+      </div>
+
+      <!-- 撿貨清單 -->
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px">
+        <thead>
+          <tr style="background:#1B4F7A;color:#fff">
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:32px">#</th>
+            <th style="padding:8px 6px;border:1px solid #ccc">品名 Item Name</th>
+            <th style="padding:8px 6px;border:1px solid #ccc">料號 Part No.</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:70px">數量 Qty</th>
+            <th style="padding:8px 6px;border:1px solid #ccc">訂單號 Order No.</th>
+            <th style="padding:8px 6px;border:1px solid #ccc">申請用途 Purpose</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:90px">庫位 Location</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:48px">✓</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+  mergeSelectedItems.forEach((item, i) => {
+    const bg = i % 2 === 0 ? '#f8f9fa' : '#fff';
+    html += `
+          <tr style="background:${bg}">
+            <td style="padding:8px 6px;border:1px solid #ddd;text-align:center;color:#666">${i+1}</td>
+            <td style="padding:8px 6px;border:1px solid #ddd;font-weight:500">${item.itemName}</td>
+            <td style="padding:8px 6px;border:1px solid #ddd;font-family:monospace;font-size:11px">${item.partNo || '-'}</td>
+            <td style="padding:8px 6px;border:1px solid #ddd;text-align:center;font-weight:600">${item.qty} ${item.unit}</td>
+            <td style="padding:8px 6px;border:1px solid #ddd;font-family:monospace;font-size:11px">${item.orderNo}</td>
+            <td style="padding:8px 6px;border:1px solid #ddd;font-size:11px">${item.purpose || '-'}</td>
+            <td style="padding:8px 6px;border:1px solid #ddd"></td>
+            <td style="padding:8px 6px;border:1px solid #ddd"></td>
+          </tr>`;
+  });
+
+  html += `
+        </tbody>
+      </table>
+
+      <!-- 備注 -->
+      <div style="border:1px solid #ccc;border-radius:4px;padding:10px 14px;min-height:50px;margin-bottom:16px">
+        <div style="color:#666;font-size:11px;margin-bottom:6px">備注 Remarks：</div>
+      </div>
+
+      <!-- 操作人員 -->
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <tr>
+          <td style="width:33%;padding-right:12px">
+            <div style="border-bottom:1px solid #333;padding-bottom:4px;min-height:32px"></div>
+            <div style="color:#666;font-size:11px;margin-top:4px">撿貨人員 Picker</div>
+          </td>
+          <td style="width:33%;padding-right:12px">
+            <div style="border-bottom:1px solid #333;padding-bottom:4px;min-height:32px"></div>
+            <div style="color:#666;font-size:11px;margin-top:4px">複核人員 Checker</div>
+          </td>
+          <td style="width:33%">
+            <div style="border-bottom:1px solid #333;padding-bottom:4px;min-height:32px"></div>
+            <div style="color:#666;font-size:11px;margin-top:4px">日期 Date</div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="text-align:center;font-size:10px;color:#aaa;padding-top:10px;margin-top:14px;border-top:1px solid #eee">
+        OEG Fleet System｜撿貨單 Pick List｜${printDate} ${printTime}
+      </div>
+    </div>`;
+  return html;
+}
+
+function printPickListDirect() {
+  const html = buildPickListHTML();
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"><title>撿貨單 Pick List</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>body{font-family:'Noto Sans TC',Arial,sans-serif;margin:20px;background:#fff;color:#333}@media print{body{margin:10mm}}</style>
+  </head><body>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 600);
+}
+
+function downloadPickListPDF() {
+  const html = buildPickListHTML();
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"><title>撿貨單 Pick List</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body{font-family:'Noto Sans TC',Arial,sans-serif;margin:0;padding:20px;background:#fff;color:#333}
+      @page{size:A4;margin:15mm}
+      @media print{body{padding:0}.no-print{display:none}}
+      .no-print{text-align:center;padding:12px;background:#f0f0f0;margin-bottom:16px;border-radius:4px;font-size:13px;color:#555}
+    </style>
+  </head><body>
+    <div class="no-print">📄 請按 Ctrl+P → 選擇「另存為 PDF」</div>
+    ${html}
+    <script>setTimeout(() => window.print(), 800);<\/script>
+  </body></html>`);
+  win.document.close();
+}
 // ============================================================
 // 合併出單
 // ============================================================
@@ -2437,12 +2613,17 @@ function onItemCheck(checkbox) {
     mergeSelectedItems = mergeSelectedItems.filter(i => i.itemNo !== itemNo);
   }
 
-  // 更新合併出單按鈕
+  // 更新合併出單 & 撿貨單按鈕
+  const count = mergeSelectedItems.length;
   const btn = document.getElementById('merge-receipt-btn');
   if (btn) {
-    const count = mergeSelectedItems.length;
     btn.style.display = count > 0 ? 'inline-flex' : 'none';
     btn.innerHTML = '<i class="ti ti-files"></i> 合併出單（' + count + '）';
+  }
+  const pickBtn = document.getElementById('pick-list-btn');
+  if (pickBtn) {
+    pickBtn.style.display = count > 0 ? 'inline-flex' : 'none';
+    pickBtn.innerHTML = '<i class="ti ti-list-check"></i> 撿貨單（' + count + '）';
   }
 
   // 確認同艘船
@@ -2453,11 +2634,16 @@ function onItemCheck(checkbox) {
       checkbox.checked = false;
       tr.classList.remove('merge-row-selected');
       mergeSelectedItems = mergeSelectedItems.filter(i => i.itemNo !== itemNo);
-      const btn2 = document.getElementById('merge-receipt-btn');
       const count2 = mergeSelectedItems.length;
+      const btn2 = document.getElementById('merge-receipt-btn');
       if (btn2) {
         btn2.style.display = count2 > 0 ? 'inline-flex' : 'none';
         btn2.innerHTML = '<i class="ti ti-files"></i> 合併出單（' + count2 + '）';
+      }
+      const pickBtn2 = document.getElementById('pick-list-btn');
+      if (pickBtn2) {
+        pickBtn2.style.display = count2 > 0 ? 'inline-flex' : 'none';
+        pickBtn2.innerHTML = '<i class="ti ti-list-check"></i> 撿貨單（' + count2 + '）';
       }
     }
   }
@@ -2634,6 +2820,8 @@ async function submitAndPrintMerge() {
   document.querySelectorAll('.merge-check[id^="chk-all-"]').forEach(cb => { cb.checked = false; });
   const btn = document.getElementById('merge-receipt-btn');
   if (btn) btn.style.display = 'none';
+  const pickBtnR = document.getElementById('pick-list-btn');
+  if (pickBtnR) pickBtnR.style.display = 'none';
 
   closeModal('modal-merge-receipt');
 
