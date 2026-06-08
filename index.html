@@ -1738,12 +1738,21 @@ async function loadCrewAccounts() {
     html += '<tr><td class="text-mono">' + a.accountId + '</td><td>' + a.nameZh + '</td><td>' + a.nameEn + '</td>' +
       '<td><select style="font-size:11px;padding:3px 6px;width:110px" onchange="changeVessel(\'' + a.accountId + '\',this.value)">' +
       ['VLK','WTN','VLN','WYF'].map(c => '<option value="' + c + '" ' + (a.vesselCode===c?'selected':'') + '>' + c + '</option>').join('') + '</select></td>' +
-      '<td>' + statusBadge + '</td><td><div class="flex gap4">' + toggleBtn + '</div></td></tr>';
+      '<td>' + statusBadge + '</td>' +'<td><div class="flex gap4">' + toggleBtn +'<button class="btn btn-xs btn-danger" onclick="deleteCrewAccount(\'' + a.accountId + '\')"><i class="ti ti-trash"></i>刪除</button>' +'</div></td></tr>';
   });
   html += '</tbody></table>';
   el.innerHTML = html;
 }
 
+
+async function deleteCrewAccount(accountId) {
+  if (!confirm('確定刪除帳號「' + accountId + '」？\n此操作無法復原。')) return;
+  showLoading('刪除中...');
+  const res = await api('deleteAccount', { accountId });
+  hideLoading();
+  if (res.success) loadCrewAccounts();
+  else alert('刪除失敗：' + res.message);
+}
 async function toggleLeave(accountId, status) {
   showLoading('更新中...');
   const res = await api('updateAccount', { accountId, status });
