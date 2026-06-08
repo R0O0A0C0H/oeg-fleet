@@ -1920,6 +1920,7 @@ function adminShowPage(name) {
   if (name === 'crew-accounts') loadCrewAccounts();
   if (name === 'orders') { _allOrdersData = null; _allOrdersMonth = null; loadAllOrders(); }
   if (name === 'repairs') { _allRepairsData = null; _allRepairsMonth = null; loadAllRepairs(); }
+  if (name === 'stock-publish') loadSystemSettings();
 }
 
 async function loadPendingAccounts() {
