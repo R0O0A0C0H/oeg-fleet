@@ -387,7 +387,10 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 
 <!-- CREW APP -->
 <div id="crew-app" style="display:none;flex-direction:column;height:100vh">
-  <div class="offline-banner" id="offline-banner"><i class="ti ti-wifi-off"></i><span>目前離線，資料已暫存，連線後將自動同步。</span></div>
+  <div id="maintenance-banner" style="display:none;background:rgba(231,76,60,0.15);border-bottom:0.5px solid rgba(231,76,60,0.3);padding:10px 20px;font-size:13px;color:var(--danger);align-items:center;gap:8px;justify-content:center;text-align:center;">
+  <i class="ti ti-tools"></i> <span id="maintenance-banner-msg">系統維護中，請稍後再試。</span>
+</div>
+<div class="offline-banner" id="offline-banner"><i class="ti ti-wifi-off"></i><span>目前離線，資料已暫存，連線後將自動同步。</span></div>
   <div class="topbar">
     <div class="flex gap8"><span class="topbar-logo" id="crew-topbar-logo">OEG<span>.</span>Fleet</span><span class="vessel-chip" id="crew-vessel-chip"></span></div>
     <div class="flex gap8">
@@ -408,8 +411,8 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="nav-label">報修作業</div>
         <div class="nav-item" onclick="crewShowPage('repair-new')" id="cni-repair-new"><i class="ti ti-tool"></i>新增報修單</div>
         <div class="nav-item" onclick="crewShowPage('repair-history')" id="cni-repair-history"><i class="ti ti-clipboard-list"></i>報修紀錄</div>
-        <div class="nav-item" onclick="crewShowPage('stock-apply');loadStockItemsForCrew()" id="cni-stock-apply"><i class="ti ti-package-import"></i>備品申請</div>
-        <div class="nav-item" onclick="crewShowPage('stock-history');loadMyStockHistory()" id="cni-stock-history"><i class="ti ti-history"></i>申請紀錄</div>
+        <div class="nav-item" id="cni-stock-query" style="color:var(--text3);cursor:default;pointer-events:none;opacity:0.5;"><i class="ti ti-package-search"></i>備品查詢 <span style="font-size:10px;margin-left:4px;">即將上線</span></div>
+        <div class="nav-item" id="cni-stock-query-active" onclick="crewShowPage('stock-apply')" style="display:none"><i class="ti ti-package-search"></i>備品查詢</div>
       </div>
     </div>
     <div class="content">
@@ -529,50 +532,23 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           <div class="card"><div id="repair-history-content"><div class="text-dim text-sm" style="padding:20px;text-align:center">載入中...</div></div></div>
         </div>
 
-        <!-- 備品申請 -->
+        <!-- 備品查詢 -->
         <div class="page" id="crew-page-stock-apply">
-          <div class="notice notice-info"><i class="ti ti-info-circle"></i>搜尋備品後選擇品項，填寫用途說明後送出申請。</div>
-          <div class="card">
-            <div class="form-group">
-              <label class="form-label">搜尋備品</label>
-              <input type="text" id="stock-search-input" placeholder="輸入品項名稱、廠牌或型號..." oninput="filterStockItems(this.value)">
-            </div>
-            <div id="stock-item-list" style="max-height:280px;overflow-y:auto;margin-bottom:12px;border:0.5px solid var(--border);border-radius:var(--radius);">
-              <div class="text-dim text-sm" style="padding:12px;text-align:center">請先搜尋備品</div>
-            </div>
-            <div id="stock-selected-item" style="display:none;background:var(--bg3);border:0.5px solid var(--accent);border-radius:var(--radius);padding:12px;margin-bottom:12px;">
-              <div class="flex gap8" style="margin-bottom:6px;">
-                <i class="ti ti-box" style="color:var(--accent)"></i>
-                <span class="bold" id="sa-item-name">-</span>
-                <span class="badge badge-info" id="sa-item-brand">-</span>
-              </div>
-              <div class="text-sm text-dim flex gap12">
-                <span>型號：<span id="sa-item-model">-</span></span>
-                <span>庫存：<span id="sa-item-qty" class="text-success bold">-</span></span>
-                <span>地點：<span id="sa-item-location">-</span></span>
-              </div>
-            </div>
-            <div class="form-grid">
-              <div class="form-group">
-                <label class="form-label">申請數量 <span class="req">*</span></label>
-                <input type="number" id="sa-qty" value="1" min="1">
-              </div>
-              <div class="form-group">
-                <label class="form-label">用途說明 <span class="req">*</span></label>
-                <input type="text" id="sa-purpose" placeholder="例：更換主機冷卻水泵">
-              </div>
-            </div>
-            <div class="err-msg" id="sa-err"></div>
-            <button class="btn btn-primary w100" onclick="submitStockApply()" id="sa-submit-btn" disabled>
-              <i class="ti ti-send"></i>送出申請
-            </button>
+          <div id="stock-query-coming-soon" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;text-align:center;">
+            <i class="ti ti-package-search" style="font-size:48px;color:var(--text3);margin-bottom:16px;"></i>
+            <div style="font-size:18px;font-weight:500;color:var(--text2);margin-bottom:8px;">備品查詢即將上線</div>
+            <div style="font-size:13px;color:var(--text3);">此功能正在準備中，敬請期待。</div>
           </div>
-        </div>
-
-        <!-- 備品申請紀錄 -->
-        <div class="page" id="crew-page-stock-history">
-          <div class="card">
-            <div id="stock-history-content"><div class="text-dim text-sm" style="padding:20px;text-align:center">載入中...</div></div>
+          <div id="stock-query-content" style="display:none;">
+            <div class="card">
+              <div class="form-group">
+                <label class="form-label">搜尋備品</label>
+                <input type="text" id="stock-search-input" placeholder="輸入品項名稱、廠牌或型號..." oninput="filterStockItems(this.value)">
+              </div>
+              <div id="stock-item-list" style="max-height:480px;overflow-y:auto;border:0.5px solid var(--border);border-radius:var(--radius);">
+                <div class="text-dim text-sm" style="padding:12px;text-align:center">請輸入關鍵字搜尋</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -605,7 +581,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       </div>
       <div class="nav-section">
         <div class="nav-label">備品管理</div>
-        <div class="nav-item" onclick="adminShowPage('stock-applications')" id="ani-stock-applications"><i class="ti ti-package-import"></i>備品申請審核<span class="nav-badge" id="stock-pending-badge" style="display:none">0</span></div>
+        <div class="nav-item" onclick="adminShowPage('stock-publish')" id="ani-stock-publish"><i class="ti ti-package-search"></i>備品查詢管理</div>
       </div>
       <div class="nav-section">
         <div class="nav-label">系統</div>
@@ -650,13 +626,13 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         </div>
       </div>
 
-      <div id="aab-stock-applications" class="action-bar" style="display:none">
+      <div id="aab-stock-publish" class="action-bar" style="display:none">
         <div class="action-bar-left">
-          <div class="action-bar-title">備品申請審核</div>
-          <div class="action-bar-sub">審核通過後自動扣除倉庫庫存</div>
+          <div class="action-bar-title">備品查詢管理</div>
+          <div class="action-bar-sub">控制功能開放與系統維護狀態</div>
         </div>
         <div class="action-bar-right">
-          <button class="btn btn-sm" onclick="loadStockApplications()"><i class="ti ti-refresh"></i>重新整理</button>
+          <button class="btn btn-sm" onclick="loadSystemSettings()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
       <div id="aab-sys-settings" class="action-bar" style="display:none">
@@ -664,31 +640,50 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="action-bar-right"></div>
       </div>
       <div class="page-body">
-        <div class="page" id="admin-page-stock-applications">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-            <select id="stock-filter-status" onchange="loadStockApplications()" style="width:auto;font-size:12px;padding:5px 8px;">
-              <option value="">全部狀態</option>
-              <option value="待審核">待審核</option>
-              <option value="已核准">已核准</option>
-              <option value="已拒絕">已拒絕</option>
-            </select>
-            <select id="stock-filter-vessel" onchange="loadStockApplications()" style="width:auto;font-size:12px;padding:5px 8px;">
-              <option value="">全部船隻</option>
-            </select>
+        <div class="page" id="admin-page-stock-publish">
+          <!-- 備品查詢開關 -->
+          <div class="card">
+            <div class="card-title"><i class="ti ti-package-search"></i>備品查詢功能</div>
+            <div class="flex gap12" style="align-items:center;margin-bottom:8px;">
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:500;margin-bottom:4px;">開放船員使用備品查詢</div>
+                <div class="text-sm text-dim">開啟後，船員端「備品查詢」導航將解鎖，可搜尋查看倉庫備品資料。</div>
+              </div>
+              <div>
+                <span id="stock-enabled-status" class="badge badge-pending">載入中</span>
+              </div>
+            </div>
+            <div class="flex gap8">
+              <button class="btn btn-success btn-sm" onclick="setSystemSetting('stock_enabled','true')"><i class="ti ti-toggle-right"></i>開放查詢</button>
+              <button class="btn btn-danger btn-sm" onclick="setSystemSetting('stock_enabled','false')"><i class="ti ti-toggle-left"></i>關閉查詢</button>
+            </div>
           </div>
-          <div class="card" style="padding:0;overflow:hidden;">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>申請單號</th><th>申請時間</th><th>船隻</th><th>申請人</th>
-                  <th>品項名稱</th><th>廠牌</th><th>數量</th><th>用途說明</th>
-                  <th>狀態</th><th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="stock-app-tbody">
-                <tr><td colspan="10" class="text-dim" style="text-align:center;padding:20px">載入中...</td></tr>
-              </tbody>
-            </table>
+
+          <!-- 系統維護模式 -->
+          <div class="card">
+            <div class="card-title"><i class="ti ti-tools"></i>系統維護模式</div>
+            <div class="flex gap12" style="align-items:center;margin-bottom:12px;">
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:500;margin-bottom:4px;">開啟維護模式</div>
+                <div class="text-sm text-dim">開啟後，船員登入系統將看到維護中警示，無法進行任何操作。</div>
+              </div>
+              <div>
+                <span id="maintenance-status" class="badge badge-pending">載入中</span>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label">維護訊息（顯示給船員看）</label>
+              <input type="text" id="maintenance-msg-input" placeholder="系統維護中，請稍後再試。" style="font-size:13px;">
+            </div>
+            <div class="flex gap8">
+              <button class="btn btn-danger btn-sm" onclick="enableMaintenance()"><i class="ti ti-tools"></i>開啟維護模式</button>
+              <button class="btn btn-success btn-sm" onclick="setSystemSetting('maintenance_mode','false')"><i class="ti ti-check"></i>關閉維護模式</button>
+            </div>
+          </div>
+
+          <div class="notice notice-warn">
+            <i class="ti ti-alert-triangle"></i>
+            變更設定後，船員端將在下次重新整理時生效。維護模式開啟期間，管理端不受影響。
           </div>
         </div>
 
@@ -1283,6 +1278,7 @@ function enterCrewApp() {
   showScreen('crew');
   buildOrderTable();
   loadSettings();
+  checkSystemStatus();
   const reporter = document.getElementById('r-reporter');
   if (reporter) reporter.value = currentUser.nameZh + ' ' + currentUser.nameEn;
 }
@@ -1355,7 +1351,7 @@ function backToLogin() {
   switchLoginTab('login');
 }
 
-const CREW_PAGES = ['order-new','order-history','repair-new','repair-history','stock-apply','stock-history'];
+const CREW_PAGES = ['order-new','order-history','repair-new','repair-history','stock-apply'];
 
 function crewShowPage(name) {
   CREW_PAGES.forEach(p => {
@@ -3559,6 +3555,113 @@ async function confirmRejectStock() {
   hideLoading();
   if (r.success) loadStockApplications();
   else alert('操作失敗：' + r.message);
+}
+
+
+// ══════════════════════════════════════════════════════
+//  系統設定模組
+// ══════════════════════════════════════════════════════
+let _sysSettings = {};
+
+async function loadSystemSettings() {
+  const r = await api('getSystemSettings');
+  if (!r.success) return;
+  _sysSettings = r.settings || {};
+  renderSystemSettings();
+}
+
+function renderSystemSettings() {
+  const stockEnabled = _sysSettings['stock_enabled'] === 'true';
+  const maintenance  = _sysSettings['maintenance_mode'] === 'true';
+  const msg          = _sysSettings['maintenance_message'] || '系統維護中，請稍後再試。';
+
+  // 備品查詢狀態
+  const seEl = document.getElementById('stock-enabled-status');
+  if (seEl) {
+    seEl.textContent = stockEnabled ? '已開放' : '已關閉';
+    seEl.className = 'badge ' + (stockEnabled ? 'badge-approved' : 'badge-rejected');
+  }
+
+  // 維護模式狀態
+  const mmEl = document.getElementById('maintenance-status');
+  if (mmEl) {
+    mmEl.textContent = maintenance ? '維護中' : '正常運作';
+    mmEl.className = 'badge ' + (maintenance ? 'badge-rejected' : 'badge-approved');
+  }
+
+  // 維護訊息
+  const msgInput = document.getElementById('maintenance-msg-input');
+  if (msgInput) msgInput.value = msg;
+}
+
+async function setSystemSetting(key, value) {
+  showLoading('更新設定中...');
+  const r = await api('setSystemSetting', { key, value });
+  hideLoading();
+  if (r.success) { await loadSystemSettings(); }
+  else alert('更新失敗：' + r.message);
+}
+
+async function enableMaintenance() {
+  const msg = document.getElementById('maintenance-msg-input')?.value.trim() || '系統維護中，請稍後再試。';
+  if (!confirm('確定開啟維護模式？\n\n船員端將顯示：\n「' + msg + '」')) return;
+  showLoading('開啟維護模式...');
+  await api('setSystemSetting', { key: 'maintenance_message', value: msg });
+  const r = await api('setSystemSetting', { key: 'maintenance_mode', value: 'true' });
+  hideLoading();
+  if (r.success) { await loadSystemSettings(); alert('✅ 維護模式已開啟'); }
+  else alert('更新失敗：' + r.message);
+}
+
+// ── 船員端：登入後檢查系統狀態 ──────────────────────────
+async function checkSystemStatus() {
+  const r = await api('getSystemSettings');
+  if (!r.success) return;
+  const settings = r.settings || {};
+
+  // 維護模式
+  if (settings['maintenance_mode'] === 'true') {
+    const msg = settings['maintenance_message'] || '系統維護中，請稍後再試。';
+    const banner = document.getElementById('maintenance-banner');
+    const bannerMsg = document.getElementById('maintenance-banner-msg');
+    if (banner) { banner.style.display = 'flex'; }
+    if (bannerMsg) bannerMsg.textContent = msg;
+    // 顯示維護覆蓋層
+    showMaintenanceOverlay(msg);
+    return false;
+  }
+
+  // 備品查詢開關
+  const stockEnabled = settings['stock_enabled'] === 'true';
+  const queryDisabled = document.getElementById('cni-stock-query');
+  const queryEnabled  = document.getElementById('cni-stock-query-active');
+  const queryContent  = document.getElementById('stock-query-content');
+  const queryComingSoon = document.getElementById('stock-query-coming-soon');
+
+  if (queryDisabled)  queryDisabled.style.display  = stockEnabled ? 'none' : '';
+  if (queryEnabled)   queryEnabled.style.display   = stockEnabled ? '' : 'none';
+  if (queryContent)   queryContent.style.display   = stockEnabled ? '' : 'none';
+  if (queryComingSoon) queryComingSoon.style.display = stockEnabled ? 'none' : '';
+
+  if (stockEnabled) loadStockItemsForCrew();
+
+  return true;
+}
+
+function showMaintenanceOverlay(msg) {
+  let overlay = document.getElementById('maintenance-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'maintenance-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;';
+    overlay.innerHTML = '<i class="ti ti-tools" style="font-size:56px;color:var(--danger);margin-bottom:20px;"></i>' +
+      '<div style="font-size:20px;font-weight:500;margin-bottom:10px;">系統維護中</div>' +
+      '<div id="maintenance-overlay-msg" style="font-size:14px;color:var(--text2);max-width:360px;line-height:1.6;"></div>' +
+      '<div style="margin-top:24px;font-size:12px;color:var(--text3);">管理員正在進行系統更新，請稍後再試。</div>';
+    document.body.appendChild(overlay);
+  }
+  document.getElementById('maintenance-overlay-msg').textContent = msg;
+  overlay.style.display = 'flex';
 }
 
 </script>
