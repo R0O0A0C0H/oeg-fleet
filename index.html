@@ -1270,7 +1270,7 @@ async function doLogin() {
   enterCrewApp();
 }
 
-function enterCrewApp() {
+async function enterCrewApp() {
   const v = VESSELS[currentUser.vesselCode];
   document.getElementById('crew-vessel-chip').textContent = currentUser.vesselCode + ' — ' + v.en + ' ' + v.zh;
   document.getElementById('crew-username').textContent = currentUser.nameZh + ' ' + currentUser.nameEn;
