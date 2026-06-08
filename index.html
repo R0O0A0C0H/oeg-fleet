@@ -272,7 +272,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
   <div class="login-card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
       <div>
-        <div class="login-logo">OEG<span>.</span>Fleet</div>
+        <div class="login-logo" id="login-logo-img">OEG<span>.</span>Fleet</div>
         <div class="login-sub" id="ls-sub">船員作業系統 Crew Operations System</div>
       </div>
       <div class="flex gap4">
@@ -356,7 +356,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 <div id="crew-app" style="display:none;flex-direction:column;height:100vh">
   <div class="offline-banner" id="offline-banner"><i class="ti ti-wifi-off"></i><span>目前離線，資料已暫存，連線後將自動同步。</span></div>
   <div class="topbar">
-    <div class="flex gap8"><span class="topbar-logo">OEG<span>.</span>Fleet</span><span class="vessel-chip" id="crew-vessel-chip"></span></div>
+    <div class="flex gap8"><span class="topbar-logo" id="crew-topbar-logo">OEG<span>.</span>Fleet</span><span class="vessel-chip" id="crew-vessel-chip"></span></div>
     <div class="flex gap8">
       <span class="text-sm text-dim flex gap4"><i class="ti ti-user"></i><span id="crew-username"></span></span>
       <button class="btn btn-sm" id="al-zh" onclick="setLang('zh')">中文</button>
@@ -501,7 +501,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 <!-- ADMIN APP -->
 <div id="admin-app" style="display:none;flex-direction:column;height:100vh">
   <div class="topbar">
-    <div class="flex gap8"><span class="topbar-logo">OEG<span>.</span>Fleet</span><span class="badge badge-pending" style="font-family:var(--font-mono)"><i class="ti ti-shield" style="font-size:11px"></i> ADMIN</span></div>
+    <div class="flex gap8"><span class="topbar-logo" id="admin-topbar-logo">OEG<span>.</span>Fleet</span><span class="badge badge-pending" style="font-family:var(--font-mono)"><i class="ti ti-shield" style="font-size:11px"></i> ADMIN</span></div>
     <div class="flex gap8"><span class="text-sm text-dim flex gap4"><i class="ti ti-user"></i><span id="admin-username"></span></span><button class="btn btn-sm btn-danger" onclick="doAdminLogout()"><i class="ti ti-logout"></i> 登出</button></div>
   </div>
   <div class="layout">
@@ -520,6 +520,10 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       <div class="nav-section">
         <div class="nav-label">報修管理</div>
         <div class="nav-item" onclick="adminShowPage('repairs')" id="ani-repairs"><i class="ti ti-tool"></i>報修單管理</div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">系統</div>
+        <div class="nav-item" onclick="adminShowPage('sys-settings')" id="ani-sys-settings"><i class="ti ti-adjustments"></i>系統設定</div>
       </div>
     </div>
     <div class="content">
@@ -557,6 +561,10 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         </div>
       </div>
 
+      <div id="aab-sys-settings" class="action-bar" style="display:none">
+        <div class="action-bar-left"><div class="action-bar-title">系統設定</div><div class="action-bar-sub">LOGO 與系統外觀設定</div></div>
+        <div class="action-bar-right"></div>
+      </div>
       <div class="page-body">
         <div class="page active" id="admin-page-admin-accounts">
           <div class="card">
@@ -635,6 +643,49 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           <div class="month-tabs" id="admin-repair-tabs"></div>
           <div class="card" style="overflow-x:auto"><div id="repairs-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div></div>
         </div>
+
+        <!-- 系統設定 -->
+        <div class="page" id="admin-page-sys-settings">
+          <div class="card">
+            <div class="card-title"><i class="ti ti-photo"></i>系統 LOGO</div>
+            <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap">
+              <!-- 目前 LOGO 預覽 -->
+              <div>
+                <div class="text-sm text-dim" style="margin-bottom:8px">目前 LOGO</div>
+                <div id="logo-preview-box" style="width:180px;height:80px;background:var(--bg3);border:0.5px solid var(--border2);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;overflow:hidden">
+                  <img id="logo-preview-img" src="" alt="LOGO" style="max-width:100%;max-height:100%;object-fit:contain;display:none">
+                  <span id="logo-preview-empty" class="text-dimmer text-sm">尚未設定</span>
+                </div>
+                <div style="margin-top:8px;display:flex;gap:6px">
+                  <button class="btn btn-xs btn-danger" id="logo-remove-btn" style="display:none" onclick="removeLogo()"><i class="ti ti-trash"></i>移除</button>
+                </div>
+              </div>
+              <!-- 上傳新 LOGO -->
+              <div style="flex:1;min-width:200px">
+                <div class="text-sm text-dim" style="margin-bottom:8px">上傳新 LOGO</div>
+                <div class="img-upload-zone" id="logo-upload-zone" style="padding:12px;text-align:center;cursor:pointer" onclick="document.getElementById('logo-file-input').click()" ondragover="imgDragOver(event,'logo-upload-zone')" ondragleave="imgDragLeave('logo-upload-zone')" ondrop="logoFileDrop(event)">
+                  <i class="ti ti-cloud-upload" style="font-size:22px;color:var(--text3);display:block;margin-bottom:4px"></i>
+                  <p style="font-size:12px;color:var(--text3);margin:2px 0">點擊或拖曳上傳</p>
+                  <p class="text-xs" style="color:var(--text3);margin:2px 0">PNG / SVG / JPG · 建議透明背景</p>
+                </div>
+                <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="handleLogoFile(this.files[0])">
+                <div id="logo-upload-status" class="text-sm" style="margin-top:8px;min-height:20px"></div>
+                <div style="margin-top:10px">
+                  <div class="text-sm text-dim" style="margin-bottom:6px">或輸入圖片網址</div>
+                  <div style="display:flex;gap:6px">
+                    <input type="text" id="logo-url-input" placeholder="https://..." style="flex:1">
+                    <button class="btn btn-sm btn-primary" onclick="setLogoFromUrl()"><i class="ti ti-check"></i>套用</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="notice notice-info" style="margin-top:16px">
+              <i class="ti ti-info-circle"></i>
+              <span>LOGO 會顯示在：系統 topbar、登入頁、簽收單左上角。建議使用 PNG 透明背景，寬高比約 3:1 至 4:1。</span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -643,7 +694,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 <!-- ADMIN LOGIN -->
 <div id="admin-login-screen" style="display:none" class="login-screen">
   <div class="login-card">
-    <div class="login-logo">OEG<span>.</span>Fleet <span style="font-size:13px;color:var(--text2)">Admin</span></div>
+    <div class="login-logo" id="admin-login-logo-img">OEG<span>.</span>Fleet <span style="font-size:13px;color:var(--text2)">Admin</span></div>
     <div class="login-sub">管理員後台 Admin Back-Office</div>
     <div class="tab-switch">
       <button class="tab-btn active" id="adm-tab-login" onclick="switchAdminLoginTab('login')">登入 Login</button>
@@ -667,6 +718,19 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       <div class="err-msg" id="adm-reg-err"></div>
     </div>
     <div class="login-switch-link"><a onclick="showScreen('login')">← 返回船員登入</a></div>
+  </div>
+</div>
+
+<!-- 簽收單 Modal -->
+<div class="modal-overlay" id="modal-receipt" style="z-index:400">
+  <div class="modal" style="width:780px;max-width:96vw;max-height:90vh;overflow-y:auto">
+    <div class="modal-title"><i class="ti ti-file-invoice"></i> 訂購單簽收確認 Delivery Receipt</div>
+    <div id="receipt-content" style="background:#fff;color:#333;padding:24px;border-radius:6px;font-family:'Noto Sans TC',Arial,sans-serif"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-sm" onclick="closeModal('modal-receipt')">關閉</button>
+      <button class="btn btn-sm" onclick="printReceiptDirect()"><i class="ti ti-printer"></i> 列印</button>
+      <button class="btn btn-sm btn-primary" onclick="downloadReceiptPDF()"><i class="ti ti-download"></i> 下載 PDF</button>
+    </div>
   </div>
 </div>
 
@@ -1380,7 +1444,7 @@ function renderRepairHistory() {
 
 async function loadSettings() {
   const res = await api('getSettings', {});
-  if (res.success) { settings = res.data; renderSettingTags(); updateStatusFilters(); }
+  if (res.success) { settings = res.data; renderSettingTags(); updateStatusFilters(); applyLogoFromSettings(); }
   return res;
 }
 
@@ -1663,7 +1727,7 @@ function doAdminLogout() {
   showScreen('login');
 }
 
-const ADMIN_PAGES = ['admin-accounts','admin-pending','crew-pending','crew-accounts','orders','repairs'];
+const ADMIN_PAGES = ['admin-accounts','admin-pending','crew-pending','crew-accounts','orders','repairs','sys-settings'];
 
 function adminShowPage(name) {
   ADMIN_PAGES.forEach(p => {
@@ -1823,7 +1887,7 @@ async function loadAllOrders(month) {
       '<span style="font-size:12px;color:var(--text2)">' + order.vessel + ' · ' + order.applicant + ' · ' + dateStr + ' · ' + order.items.length + ' 項</span>' +
       '<span class="badge ' + orderBadgeClass + '" id="obadge-' + oi + '">' + orderBadge + '</span>' +
       (imgsHtml ? imgsHtml : '') +
-      '<i class="ti ti-chevron-down" style="margin-left:auto;color:var(--text3);transition:transform 0.2s" id="ochev-' + oi + '" aria-hidden="true"></i></div>' +
+      '<div style="margin-left:auto;display:flex;align-items:center;gap:6px">' +'<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModal(\'' + order.orderNo + '\',\'' + order.vessel + '\')"><i class="ti ti-file-invoice"></i> 簽收單</button>' +'<i class="ti ti-chevron-down" style="color:var(--text3);transition:transform 0.2s" id="ochev-' + oi + '" aria-hidden="true"></i>' +'</div></div>' +
       '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
       '<th>#</th><th>品名</th><th>料號</th><th>數量</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>處理進度</th><th>操作</th>' +
       '</tr></thead><tbody>';
@@ -1950,6 +2014,331 @@ async function submitReplyOrder() {
 }
 
 
+
+
+// ============================================================
+// LOGO 管理
+// ============================================================
+let currentLogoUrl = '';
+
+function initLogo() {
+  const url = localStorage.getItem('oeg_logo_url') || '';
+  if (url) applyLogo(url);
+}
+
+function applyLogo(url) {
+  currentLogoUrl = url;
+  localStorage.setItem('oeg_logo_url', url);
+
+  // topbar crew
+  setTopbarLogo('crew-topbar-logo', url);
+  // topbar admin
+  setTopbarLogo('admin-topbar-logo', url);
+  // 登入頁
+  setLoginLogo('login-logo-img', url);
+  // 管理員登入頁
+  setLoginLogo('admin-login-logo-img', url);
+  // 系統設定預覽
+  const preview = document.getElementById('logo-preview-img');
+  const empty = document.getElementById('logo-preview-empty');
+  const removeBtn = document.getElementById('logo-remove-btn');
+  if (preview && url) {
+    preview.src = url;
+    preview.style.display = 'block';
+    if (empty) empty.style.display = 'none';
+    if (removeBtn) removeBtn.style.display = 'inline-flex';
+  }
+}
+
+function setTopbarLogo(elId, url) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (url) {
+    el.innerHTML = '<img src="' + url + '" style="height:28px;max-width:100px;object-fit:contain;vertical-align:middle" alt="LOGO">';
+  } else {
+    el.innerHTML = 'OEG<span>.</span>Fleet';
+  }
+}
+
+function setLoginLogo(elId, url) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (url) {
+    el.innerHTML = '<img src="' + url + '" style="height:36px;max-width:160px;object-fit:contain" alt="LOGO">';
+  } else {
+    el.innerHTML = 'OEG<span>.</span>Fleet';
+  }
+}
+
+function removeLogo() {
+  if (!confirm('確定移除 LOGO？')) return;
+  currentLogoUrl = '';
+  localStorage.removeItem('oeg_logo_url');
+  applyLogoEmpty();
+  // 清除 GAS 設定
+  api('saveSettings', { settings: { ...settings, logo_url: '' } });
+}
+
+function applyLogoEmpty() {
+  ['crew-topbar-logo','admin-topbar-logo'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = 'OEG<span>.</span>Fleet';
+  });
+  ['login-logo-img','admin-login-logo-img'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = 'OEG<span>.</span>Fleet';
+  });
+  const preview = document.getElementById('logo-preview-img');
+  const empty = document.getElementById('logo-preview-empty');
+  const removeBtn = document.getElementById('logo-remove-btn');
+  if (preview) { preview.src = ''; preview.style.display = 'none'; }
+  if (empty) empty.style.display = 'block';
+  if (removeBtn) removeBtn.style.display = 'none';
+  document.getElementById('logo-upload-status').textContent = '';
+}
+
+function logoFileDrop(event) {
+  event.preventDefault();
+  imgDragLeave('logo-upload-zone');
+  const files = event.dataTransfer?.files;
+  if (files && files[0]) handleLogoFile(files[0]);
+}
+
+async function handleLogoFile(file) {
+  if (!file || !file.type.startsWith('image/')) { alert('請選擇圖片檔案'); return; }
+  const statusEl = document.getElementById('logo-upload-status');
+  statusEl.textContent = '上傳中...';
+  statusEl.style.color = 'var(--accent)';
+  try {
+    const url = await uploadToCloudinary(file);
+    statusEl.textContent = '上傳成功！';
+    statusEl.style.color = 'var(--success)';
+    await saveLogo(url);
+    applyLogo(url);
+    setTimeout(() => { statusEl.textContent = ''; }, 2000);
+  } catch(e) {
+    statusEl.textContent = '上傳失敗：' + e.message;
+    statusEl.style.color = 'var(--danger)';
+  }
+}
+
+async function setLogoFromUrl() {
+  const url = document.getElementById('logo-url-input').value.trim();
+  if (!url) { alert('請輸入圖片網址'); return; }
+  await saveLogo(url);
+  applyLogo(url);
+  document.getElementById('logo-url-input').value = '';
+  document.getElementById('logo-upload-status').textContent = '已套用！';
+  document.getElementById('logo-upload-status').style.color = 'var(--success)';
+  setTimeout(() => { document.getElementById('logo-upload-status').textContent = ''; }, 2000);
+}
+
+async function saveLogo(url) {
+  // 存到 localStorage（即時生效）
+  localStorage.setItem('oeg_logo_url', url);
+  // 存到 GAS settings（跨裝置同步）
+  await api('saveSettings', { settings: { ...settings, logo_url: url } });
+}
+
+// ── 在 loadSettings 完成後套用 LOGO ──────────────────────────
+function applyLogoFromSettings() {
+  const url = settings.logo_url || localStorage.getItem('oeg_logo_url') || '';
+  if (url) applyLogo(url);
+}
+
+// ── 在簽收單 HTML 中插入 LOGO ─────────────────────────────────
+function getReceiptLogoHtml() {
+  const url = currentLogoUrl || localStorage.getItem('oeg_logo_url') || '';
+  if (!url) return '<div style="font-size:20px;font-weight:700;color:#1B4F7A;letter-spacing:0.05em">OEG Fleet</div>';
+  return '<img src="' + url + '" style="height:48px;max-width:160px;object-fit:contain" alt="LOGO">';
+}
+// ============================================================
+// 簽收單 Receipt
+// ============================================================
+function buildReceiptHTML(orderNo, vesselCode) {
+  // 從已載入的資料找到這張訂單的所有品項
+  const allItems = (_allOrdersData || []).filter(d =>
+    (d['order_no'] === orderNo) || (d['item_no'] && d['item_no'].startsWith(orderNo))
+  );
+  if (allItems.length === 0) { alert('找不到訂單資料，請重新整理後再試。'); return null; }
+
+  const first = allItems[0];
+  const vessel = { VLK:'威可利 Valkyrie', WTN:'威騰 Wotan', VLN:'英勇 Valiant', WYF:'威風 WayFeng' };
+  const vesselName = vessel[vesselCode] || vesselCode;
+  const applicant = (first['applicant_zh'] || '') + ' ' + (first['applicant_en'] || '');
+  const submitDate = first['submit_date'] ? String(first['submit_date']).slice(0,10) : '-';
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const printDate = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+
+  let html = `
+    <div style="max-width:720px;margin:0 auto;font-size:13px;line-height:1.6">
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #1B4F7A">
+        <div>
+          ${getReceiptLogoHtml()}
+          <div style="font-size:15px;font-weight:600;color:#333;margin-top:2px">訂購單簽收確認 Delivery Receipt Confirmation</div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#666">
+          <div>列印日期 Print Date：${printDate}</div>
+          <div style="margin-top:4px;font-family:monospace;font-size:13px;font-weight:600;color:#1B4F7A">${orderNo}</div>
+        </div>
+      </div>
+
+      <!-- 訂單資訊 -->
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px">
+        <tr>
+          <td style="padding:5px 12px 5px 0;color:#666;width:120px">船隻 Vessel</td>
+          <td style="padding:5px 0;font-weight:600">${vesselCode} ${vesselName}</td>
+          <td style="padding:5px 12px 5px 0;color:#666;width:120px">申請人 Applicant</td>
+          <td style="padding:5px 0">${applicant}</td>
+        </tr>
+        <tr>
+          <td style="padding:5px 12px 5px 0;color:#666">送出日期 Submit</td>
+          <td style="padding:5px 0">${submitDate}</td>
+          <td style="padding:5px 12px 5px 0;color:#666">品項數 Items</td>
+          <td style="padding:5px 0">${allItems.length}</td>
+        </tr>
+      </table>
+
+      <!-- 品項明細 -->
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px">
+        <thead>
+          <tr style="background:#1B4F7A;color:#fff">
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:36px">#</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:left">品名 Item Name</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:left">料號 Part No.</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:70px">數量 Qty</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:left">申請用途 Purpose</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:70px">批准 Status</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:left">說明 Remark</th>
+            <th style="padding:8px 6px;border:1px solid #ccc;text-align:center;width:48px">簽收 ✓</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+  allItems.forEach((d, i) => {
+    const bg = i % 2 === 0 ? '#f8f9fa' : '#fff';
+    const approved = d['is_approved'] || 'pending';
+    let statusCell = '', remarkCell = '';
+    if (approved === 'approved') {
+      statusCell = '<span style="color:#2ecc71;font-weight:600">✓ 批准</span>';
+      remarkCell = d['remark'] || '-';
+    } else if (approved === 'rejected') {
+      statusCell = '<span style="color:#e74c3c;font-weight:600">✗ 拒絕</span>';
+      remarkCell = '<span style="color:#e74c3c">' + (d['reject_reason'] || '未說明') + '</span>';
+    } else {
+      statusCell = '<span style="color:#f39c12">⏳ 待審</span>';
+      remarkCell = d['remark'] || '-';
+    }
+    html += `
+          <tr style="background:${bg}">
+            <td style="padding:7px 6px;border:1px solid #ddd;text-align:center;color:#666">${i+1}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd">${d['item_name'] || '-'}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;font-family:monospace;font-size:11px">${d['part_no'] || '-'}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;text-align:center">${d['qty'] || '-'} ${d['unit'] || ''}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd">${d['purpose'] || '-'}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;text-align:center">${statusCell}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;font-size:11px">${remarkCell}</td>
+            <td style="padding:7px 6px;border:1px solid #ddd;text-align:center"></td>
+          </tr>`;
+  });
+
+  html += `
+        </tbody>
+      </table>
+
+      <!-- 簽名欄 -->
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px">
+        <tr>
+          <td style="width:50%;padding-right:20px">
+            <div style="border:1px solid #ccc;border-radius:4px;padding:12px;min-height:80px">
+              <div style="color:#666;margin-bottom:6px;font-size:11px">簽收人 Received By：</div>
+              <div style="border-bottom:1px solid #333;margin-bottom:4px;min-height:36px"></div>
+              <div style="color:#666;font-size:11px">姓名 Name / 簽名 Signature</div>
+            </div>
+          </td>
+          <td style="width:25%;padding-right:20px">
+            <div style="border:1px solid #ccc;border-radius:4px;padding:12px;min-height:80px">
+              <div style="color:#666;margin-bottom:6px;font-size:11px">簽收日期 Date：</div>
+              <div style="border-bottom:1px solid #333;margin-bottom:4px;min-height:36px"></div>
+              <div style="color:#666;font-size:11px">YYYY-MM-DD</div>
+            </div>
+          </td>
+          <td style="width:25%">
+            <div style="border:1px solid #ccc;border-radius:4px;padding:12px;min-height:80px">
+              <div style="color:#666;margin-bottom:6px;font-size:11px">確認章 Stamp：</div>
+              <div style="min-height:48px"></div>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- 頁腳 -->
+      <div style="text-align:center;font-size:10px;color:#aaa;padding-top:8px;border-top:1px solid #eee">
+        OEG Fleet System｜此文件由系統自動產生 This document is auto-generated by OEG Fleet System
+      </div>
+    </div>`;
+
+  return html;
+}
+
+function printReceiptModal(orderNo, vesselCode) {
+  const html = buildReceiptHTML(orderNo, vesselCode);
+  if (!html) return;
+  // 儲存目前的訂單號供列印/下載使用
+  window._receiptOrderNo = orderNo;
+  window._receiptVesselCode = vesselCode;
+  document.getElementById('receipt-content').innerHTML = html;
+  openModal('modal-receipt');
+}
+
+function printReceiptDirect() {
+  const content = document.getElementById('receipt-content').innerHTML;
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>簽收單 ${window._receiptOrderNo || ''}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Noto Sans TC', Arial, sans-serif; margin: 20px; background: #fff; color: #333; }
+      @media print {
+        body { margin: 10mm; }
+        button { display: none; }
+      }
+    </style>
+  </head><body>${content}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 600);
+}
+
+async function downloadReceiptPDF() {
+  // 使用瀏覽器 print-to-PDF：開新視窗自動觸發列印對話框
+  // 使用者選「另存為 PDF」即可
+  const content = document.getElementById('receipt-content').innerHTML;
+  const orderNo = window._receiptOrderNo || 'receipt';
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>OEG Fleet 簽收單 ${orderNo}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body { font-family: 'Noto Sans TC', Arial, sans-serif; margin: 0; padding: 20px; background: #fff; color: #333; }
+      @page { size: A4; margin: 15mm; }
+      @media print {
+        body { padding: 0; }
+        .no-print { display: none; }
+      }
+      .no-print { text-align:center; padding: 12px; background: #f0f0f0; margin-bottom: 16px; border-radius: 4px; font-size: 13px; color: #555; }
+    </style>
+  </head><body>
+    <div class="no-print">📄 請按 Ctrl+P（或 Cmd+P）→ 選擇「另存為 PDF」即可下載</div>
+    ${content}
+    <script>setTimeout(() => window.print(), 800);<\/script>
+  </body></html>`);
+  win.document.close();
+}
 function onOrderProgressDraft(vesselCode, itemNo, encodedOldProg, textarea) {
   const text = textarea.value.trim();
   const ipSafe = itemNo.replace(/[^a-zA-Z0-9]/g, '_');
@@ -2297,6 +2686,7 @@ async function syncOfflineQueue() {
 window.addEventListener('online', () => { document.getElementById('offline-banner')?.classList.remove('show'); syncOfflineQueue(); });
 window.addEventListener('offline', () => { document.getElementById('offline-banner')?.classList.add('show'); });
 
+initLogo();
 if (location.search.includes('admin')) { showScreen('admin-login'); }
 else { showScreen('login'); }
 
