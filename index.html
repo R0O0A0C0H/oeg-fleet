@@ -3177,7 +3177,7 @@ async function loadAllRepairs(month) {
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">此月份沒有報修單</div>'; return; }
 
   const actionBtns = (settings.repair_action || ['通知廠商','關閉']);
-  let html = '<table class="data-table"><thead><tr><th>報修單號</th><th>船隻</th><th>報告人</th><th>設備</th><th>照片</th><th>通知主管</th><th>狀態</th><th>處理進度</th><th>追蹤次數</th><th>最後追蹤</th><th>操作</th></tr></thead><tbody>';
+  let html = '<table class="data-table"><thead><tr><th>報修單號</th><th>船隻</th><th>報告人</th><th>設備</th><th>設備狀況</th><th>照片</th><th>通知主管</th><th>狀態</th><th>處理進度</th><th>追蹤次數</th><th>最後追蹤</th><th>操作</th></tr></thead><tbody>';
   data.forEach(d => {
     const repairNo = d['repair_no'] || '-';
     const vesselCode = d['vessel_code'] || '-';
@@ -3208,7 +3208,9 @@ async function loadAllRepairs(month) {
     }
 
     html += '<tr><td class="text-mono text-xs">' + repairNo + '</td><td>' + vesselCode + '</td>' +
-      '<td>' + (d['reporter_zh'] || '-') + '</td><td>' + (d['equipment'] || '-') + '</td>' +
+      '<td>' + (d['reporter_zh'] || '-') + '</td>' +
+      '<td>' + (d['equipment'] || '-') + '</td>' +
+      '<td><div style="max-width:180px;max-height:60px;overflow-y:auto;white-space:pre-wrap;font-size:11px;color:var(--text2)">' + (d['description'] || '-') + '</div></td>' +
       '<td>' + imgsHtml + '</td>' +
       '<td>' + notified + '</td>' +
       '<td><select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateRepairStatus(\'' + vesselCode + '\',\'' + repairNo + '\',this.value)">' + statusOpts + '</select></td>' +
