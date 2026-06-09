@@ -3112,7 +3112,14 @@ async function submitAllApprovals() {
   loadAllOrders();
 }
 
-async function updateOrderStatus(vesselCode, orderNo, status) { await api('updateOrder', { vesselCode, orderNo, status }); }
+async function updateOrderStatus(vesselCode, itemNo, status) {
+  const res = await api('updateOrder', { vesselCode, itemNo, status });
+  if (res.success && _allOrdersData) {
+    // 直接更新本地快取，避免重載後跳回舊值
+    const item = _allOrdersData.find(d => d['item_no'] === itemNo || d['order_no'] === itemNo);
+    if (item) item['status'] = status;
+  }
+}
 
 let _allRepairsData = null;
 let _allRepairsMonth = null;
