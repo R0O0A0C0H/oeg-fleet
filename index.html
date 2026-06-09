@@ -1224,6 +1224,8 @@ async function doLogin() {
   hideLoading();
   if (!res.success) { errEl.textContent = res.message; return; }
   currentUser = res.user;
+  // 用登入時選的船隻覆蓋（支援多船分配）
+  currentUser.vesselCode = selectedVessel;
   if (res.mustChangePw) { showScreen('changepw'); return; }
   enterCrewApp();
 }
