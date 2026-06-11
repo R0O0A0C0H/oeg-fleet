@@ -2919,12 +2919,40 @@ function switchCrewDeliveryMonth(m) { _crewDeliveryLogMonth = m; renderCrewDeliv
 
 // 從出貨紀錄出簽收單（用 _deliveryLogData）
 function printReceiptFromDeliveryLog(orderNo, vesselCode) {
-  const items = (_deliveryLogData || []).filter(d =>
-    (d['order_no'] === orderNo) || (String(d['item_no'] || '').startsWith(orderNo))
+  // _deliveryLogData 存的是所有月份，從中找這張訂單
+  const allItems = (_deliveryLogData || []).filter(d =>
+    String(d['order_no'] || '') === orderNo
   );
-  if (items.length === 0) { alert('找不到訂單資料，請重新整理後再試。'); return; }
+  if (allItems.length === 0) {
+    // fallback：嘗試從 _allOrdersData 找
+    if (_allOrdersData) {
+      const html = buildReceiptHTML(orderNo, vesselCode);
+      if (html) {
+        window._receiptOrderNo = orderNo;
+        window._receiptVesselCode = vesselCode;
+        document.getElementById('receipt-content').innerHTML = html;
+        openModal('modal-receipt');
+      }
+      return;
+    }
+    // 沒有資料，重新載入後再出
+    showLoading('載入訂單資料中...');
+    api('getAllOrders', {}).then(res => {
+      hideLoading();
+      if (!res.success) { alert('載入失敗，請重試'); return; }
+      _allOrdersData = res.data.map(r => r.data || r);
+      const html = buildReceiptHTML(orderNo, vesselCode);
+      if (!html) return;
+      window._receiptOrderNo = orderNo;
+      window._receiptVesselCode = vesselCode;
+      document.getElementById('receipt-content').innerHTML = html;
+      openModal('modal-receipt');
+    });
+    return;
+  }
+  // 用找到的 items 直接建立簽收單
   const backup = _allOrdersData;
-  _allOrdersData = items;
+  _allOrdersData = allItems;
   const html = buildReceiptHTML(orderNo, vesselCode);
   _allOrdersData = backup;
   if (!html) return;
