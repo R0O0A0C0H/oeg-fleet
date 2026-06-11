@@ -2915,6 +2915,26 @@ function switchDeliveryLogMonth(m) { _deliveryLogMonth = m; renderDeliveryLog();
 function switchCrewDeliveryMonth(m) { _crewDeliveryLogMonth = m; renderCrewDeliveryLog(); }
 
 
+
+// 船員端出貨紀錄簽收單
+function printReceiptModalCrew(orderNo) {
+  // 從 _crewDeliveryLogData 建立臨時 _allOrdersData 供 buildReceiptHTML 使用
+  const crewItems = (_crewDeliveryLogData || []).filter(d =>
+    (d['order_no'] === orderNo) || (d['item_no'] && String(d['item_no']).startsWith(orderNo))
+  );
+  if (crewItems.length === 0) { alert('找不到訂單資料'); return; }
+  const vesselCode = currentUser?.vesselCode || '';
+  // 暫存並替換 _allOrdersData
+  const _backup = _allOrdersData;
+  _allOrdersData = crewItems;
+  const html = buildReceiptHTML(orderNo, vesselCode);
+  _allOrdersData = _backup;
+  if (!html) return;
+  window._receiptOrderNo = orderNo;
+  window._receiptVesselCode = vesselCode;
+  document.getElementById('receipt-content').innerHTML = html;
+  openModal('modal-receipt');
+}
 // ── 修改出貨數量 ──────────────────────────────────────────────
 let _editDqtyVessel = '', _editDqtyItemNo = '';
 
@@ -2999,6 +3019,10 @@ function renderDeliveryLog() {
       '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg3);border-bottom:0.5px solid var(--border)">' +
       '<span style="font-family:var(--font-mono);font-size:13px;font-weight:500">' + order.orderNo + '</span>' +
       '<span style="font-size:12px;color:var(--text2)">' + order.vessel + ' · ' + order.applicant + ' · ' + dateStr + '</span>' +
+      '<div style="margin-left:auto">' +
+      '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModal(\'' + order.orderNo + '\',\'' + order.vessel + '\')">' +
+      '<i class="ti ti-file-invoice"></i> 簽收單</button>' +
+      '</div>' +
       '</div>' +
       '<table class="data-table" style="table-layout:fixed;min-width:700px"><thead><tr>' +
       '<th style="width:42px">#</th><th style="min-width:160px">品名</th><th style="width:110px">料號</th>' +
@@ -3078,7 +3102,11 @@ function renderCrewDeliveryLog() {
       '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg3);cursor:pointer;border-bottom:0.5px solid var(--border)" onclick="toggleCrewOrder(\'cdl' + oi + '\',\'cdlchev' + oi + '\')">' +
       '<span style="font-family:var(--font-mono);font-size:13px;font-weight:500">' + order.orderNo + '</span>' +
       '<span style="font-size:12px;color:var(--text2)">' + dateStr + ' · ' + order.items.length + ' 項已出貨</span>' +
-      '<i class="ti ti-chevron-down" style="margin-left:auto;color:var(--text3);transition:transform 0.2s" id="cdlchev' + oi + '"></i>' +
+      '<div style="margin-left:auto;display:flex;align-items:center;gap:6px">' +
+      '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModalCrew(\'' + order.orderNo + '\')">' +
+      '<i class="ti ti-file-invoice"></i> 簽收單</button>' +
+      '<i class="ti ti-chevron-down" style="color:var(--text3);transition:transform 0.2s" id="cdlchev' + oi + '"></i>' +
+      '</div>' +
       '</div>' +
       '<div id="cdl' + oi + '"><table class="data-table"><thead><tr>' +
       '<th>#</th><th>品名</th><th>數量</th><th style="text-align:center;color:var(--warning)">出貨數</th><th style="text-align:center">剩餘</th><th>狀態</th>' +
