@@ -2243,7 +2243,7 @@ async function loadAllOrders(month) {
       const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
       const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審核';
       const statusOpts = (settings.order_status || []).map(s => '<option ' + (d['status']===s?'selected':'') + '>' + s + '</option>').join('');
-      const btns = actionBtns.map(a => '<button class="btn btn-xs ' + (a==='批准'?'btn-success':'btn-danger') + '" onclick="orderItemAction(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'' + a + '\',' + oi + ',' + ii + ')">' + a + '</button>').join('');
+      const btns = actionBtns.map(a => '<button class="btn btn-xs ' + (a==='批准'?'btn-success':'btn-danger') + '" onclick="orderItemAction(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'' + a + '\',' + oi + ',' + ii + ')"><i class="ti ' + (a==='批准'?'ti-check':'ti-x') + '"></i>' + a + '</button>').join('');
 
       // 進度欄
       const deliveredQty = d['delivered_qty'] !== undefined && d['delivered_qty'] !== '' ? d['delivered_qty'] : '';
