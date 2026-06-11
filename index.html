@@ -674,7 +674,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
             </div>
           </div>
           <div class="filter-bar">
-            <select id="filter-order-vessel"><option value="">所有船隻</option><option>VLK</option><option>WTN</option><option>VLN</option><option>WYF</option></select>
+            <select id="filter-order-vessel" onchange="_allOrdersData=null;loadAllOrders()"><option value="">所有船隻</option><option>VLK</option><option>WTN</option><option>VLN</option><option>WYF</option></select>
             <select id="filter-order-status"><option value="">所有狀態</option></select>
           </div>
           <div class="month-tabs" id="admin-order-tabs"></div>
@@ -705,7 +705,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
             </div>
           </div>
           <div class="filter-bar">
-            <select id="filter-repair-vessel"><option value="">所有船隻</option><option>VLK</option><option>WTN</option><option>VLN</option><option>WYF</option></select>
+            <select id="filter-repair-vessel" onchange="_allRepairsData=null;loadAllRepairs()"><option value="">所有船隻</option><option>VLK</option><option>WTN</option><option>VLN</option><option>WYF</option></select>
             <select id="filter-repair-status"><option value="">所有狀態</option></select>
           </div>
           <div class="month-tabs" id="admin-repair-tabs"></div>
