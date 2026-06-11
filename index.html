@@ -248,6 +248,9 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 .vessel-chip-opt{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:11px;cursor:pointer;border:0.5px solid var(--border2);background:var(--bg3);color:var(--text2);transition:all 0.15s;font-family:var(--font-mono);user-select:none}
 .vessel-chip-opt:hover{border-color:var(--accent);color:var(--text)}
 .vessel-chip-opt.selected{background:rgba(59,158,255,0.15);border-color:var(--accent);color:var(--accent)}
+
+/* ── Loading Timer ── */
+.loading-box { min-width: 160px; }
 </style>
 
 <!-- v20260613 -->
@@ -290,6 +293,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
   <div class="loading-box">
     <div class="spinner"></div>
     <div class="text-dim text-sm" id="loading-msg">處理中...</div>
+    <div style="font-family:var(--font-mono);font-size:18px;font-weight:500;color:var(--accent);margin-top:8px;letter-spacing:0.05em" id="loading-timer">0.0s</div>
   </div>
 </div>
 
@@ -1239,8 +1243,33 @@ async function api(action, params = {}) {
   } catch(e) { return { success: false, message: 'Network error: ' + e.message, offline: true }; }
 }
 
-function showLoading(msg) { document.getElementById('loading-msg').textContent = msg || '處理中...'; document.getElementById('loading').classList.add('open'); }
-function hideLoading() { document.getElementById('loading').classList.remove('open'); }
+let _loadingTimerInterval = null;
+let _loadingStartTime = null;
+
+function showLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg || '處理中...';
+  document.getElementById('loading').classList.add('open');
+  // 啟動計時器
+  _loadingStartTime = Date.now();
+  const timerEl = document.getElementById('loading-timer');
+  if (timerEl) timerEl.textContent = '0.0s';
+  if (_loadingTimerInterval) clearInterval(_loadingTimerInterval);
+  _loadingTimerInterval = setInterval(() => {
+    if (timerEl) {
+      const elapsed = ((Date.now() - _loadingStartTime) / 1000).toFixed(1);
+      timerEl.textContent = elapsed + 's';
+    }
+  }, 100);
+}
+
+function hideLoading() {
+  document.getElementById('loading').classList.remove('open');
+  // 停止計時器
+  if (_loadingTimerInterval) {
+    clearInterval(_loadingTimerInterval);
+    _loadingTimerInterval = null;
+  }
+}
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
