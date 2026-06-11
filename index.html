@@ -253,7 +253,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 <script>
 // 自動版本號 cache buster
 (function() {
-  var BUILD = '20260611';
+  var BUILD = '20260612';
   var url = new URL(location.href);
   if (url.searchParams.get('v') !== BUILD) {
     url.searchParams.set('v', BUILD);
@@ -884,6 +884,29 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       <button class="btn btn-sm" onclick="closeModal('modal-receipt')">關閉</button>
       <button class="btn btn-sm" onclick="printReceiptDirect()"><i class="ti ti-printer"></i> 列印</button>
       <button class="btn btn-sm btn-primary" onclick="downloadReceiptPDF()"><i class="ti ti-download"></i> 下載 PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- 編輯訂購品項 Modal -->
+<div class="modal-overlay" id="modal-edit-order-item">
+  <div class="modal" style="width:500px;max-width:96vw">
+    <div class="modal-title"><i class="ti ti-edit"></i> 編輯訂購品項</div>
+    <div class="text-sm text-dim" id="edit-item-no-label" style="margin-bottom:12px"></div>
+    <div class="form-grid">
+      <div class="form-group form-full"><label class="form-label">申請用途 <span class="req">*</span></label><input type="text" id="edit-purpose"></div>
+      <div class="form-group form-full"><label class="form-label">何項設備</label><input type="text" id="edit-equipment" placeholder="選填"></div>
+      <div class="form-group form-full"><label class="form-label">品名 <span class="req">*</span></label><input type="text" id="edit-item-name"></div>
+      <div class="form-group form-full"><label class="form-label">料號</label><input type="text" id="edit-part-no" placeholder="選填"></div>
+      <div class="form-group"><label class="form-label">數量</label><input type="number" id="edit-qty" min="1" placeholder="選填"></div>
+      <div class="form-group"><label class="form-label">單位</label><input type="text" id="edit-unit" placeholder="選填"></div>
+      <div class="form-group form-full"><label class="form-label">備註</label><input type="text" id="edit-remark" placeholder="選填"></div>
+      <div class="form-group form-full"><label class="form-label">期望到貨日期</label><input type="date" id="edit-expected-date"></div>
+    </div>
+    <div class="err-msg" id="edit-order-item-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-edit-order-item')">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="submitEditOrderItem()"><i class="ti ti-check"></i>儲存</button>
     </div>
   </div>
 </div>
@@ -1523,7 +1546,22 @@ function renderOrderHistory() {
         '<td>' + (d['item_name'] || '-') + '</td><td>' + (d['qty'] || '-') + ' ' + (d['unit'] || '') + '</td>' +
         '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
         '<td><span class="badge ' + statusClass + '">' + status + '</span></td>' +
-        '<td><div style="width:200px;max-height:80px;overflow-y:auto;white-space:pre-wrap;font-size:11px;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border);border-radius:4px;padding:4px 6px;line-height:1.6">' + (progress || '-') + '</div></td></tr>';
+        '<td><div style="width:200px;max-height:80px;overflow-y:auto;white-space:pre-wrap;font-size:11px;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border);border-radius:4px;padding:4px 6px;line-height:1.6">' + (progress || '-') + '</div></td>' +
+        '<td><div class="flex gap4">' +
+        '<button class="btn btn-xs" ' +
+          'data-vessel="' + currentUser.vesselCode + '" ' +
+          'data-itemno="' + (d['item_no'] || '') + '" ' +
+          'data-purpose="' + (d['purpose'] || '') + '" ' +
+          'data-equipment="' + (d['equipment'] || '') + '" ' +
+          'data-itemname="' + (d['item_name'] || '') + '" ' +
+          'data-partno="' + (d['part_no'] || '') + '" ' +
+          'data-qty="' + (d['qty'] || '') + '" ' +
+          'data-unit="' + (d['unit'] || '') + '" ' +
+          'data-remark="' + (d['remark'] || '') + '" ' +
+          'data-expected="' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '') + '" ' +
+          'onclick="openEditOrderItemCrew(this)"><i class="ti ti-edit"></i>編輯</button>' +
+        '<button class="btn btn-xs btn-danger" onclick="deleteOrderItem(\'' + currentUser.vesselCode + '\',\'' + (d['item_no'] || '') + '\',\'crew\')"><i class="ti ti-trash"></i>刪除</button>' +
+        '</div></td></tr>';
     });
     html += '</tbody></table></div></div>';
   });
@@ -2162,7 +2200,10 @@ async function loadAllOrders(month) {
         '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
         dqtyHtml +
         progHtml +
-        '<td><div class="flex gap4" id="ibtn-' + oi + '-' + ii + '">' + btns + '</div></td></tr>';
+        '<td><div class="flex gap4" id="ibtn-' + oi + '-' + ii + '">' + btns +
+        '<button class="btn btn-xs" onclick="openEditOrderItem(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'' + encodeURIComponent(JSON.stringify(d)) + '\')"><i class="ti ti-edit"></i>編輯</button>' +
+        '<button class="btn btn-xs btn-danger" onclick="deleteOrderItem(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'admin\')"><i class="ti ti-trash"></i>刪除</button>' +
+        '</div></td></tr>';
     });
     html += '</tbody></table></div></div></div>';
   });
@@ -2632,6 +2673,99 @@ async function downloadReceiptPDF() {
 }
 
 
+
+// ============================================================
+// 編輯 / 刪除訂購品項
+// ============================================================
+let _editItemVessel = '', _editItemNo = '', _editItemSource = '';
+
+function openEditOrderItem(vesselCode, itemNo, encodedData) {
+  _editItemVessel = vesselCode;
+  _editItemNo = itemNo;
+  _editItemSource = 'admin';
+  try {
+    const d = JSON.parse(decodeURIComponent(encodedData));
+    document.getElementById('edit-item-no-label').textContent = '品項序號：' + itemNo;
+    document.getElementById('edit-purpose').value = d['purpose'] || '';
+    document.getElementById('edit-equipment').value = d['equipment'] || '';
+    document.getElementById('edit-item-name').value = d['item_name'] || '';
+    document.getElementById('edit-part-no').value = d['part_no'] || '';
+    document.getElementById('edit-qty').value = d['qty'] || '';
+    document.getElementById('edit-unit').value = d['unit'] || '';
+    document.getElementById('edit-remark').value = d['remark'] || '';
+    document.getElementById('edit-expected-date').value = d['expected_date'] ? String(d['expected_date']).slice(0,10) : '';
+    document.getElementById('edit-order-item-err').textContent = '';
+    openModal('modal-edit-order-item');
+  } catch(e) { alert('讀取資料失敗：' + e.message); }
+}
+
+function openEditOrderItemCrew(btn) {
+  _editItemVessel = btn.dataset.vessel;
+  _editItemNo = btn.dataset.itemno;
+  _editItemSource = 'crew';
+  document.getElementById('edit-item-no-label').textContent = '品項序號：' + _editItemNo;
+  document.getElementById('edit-purpose').value = btn.dataset.purpose || '';
+  document.getElementById('edit-equipment').value = btn.dataset.equipment || '';
+  document.getElementById('edit-item-name').value = btn.dataset.itemname || '';
+  document.getElementById('edit-part-no').value = btn.dataset.partno || '';
+  document.getElementById('edit-qty').value = btn.dataset.qty || '';
+  document.getElementById('edit-unit').value = btn.dataset.unit || '';
+  document.getElementById('edit-remark').value = btn.dataset.remark || '';
+  document.getElementById('edit-expected-date').value = btn.dataset.expected || '';
+  document.getElementById('edit-order-item-err').textContent = '';
+  openModal('modal-edit-order-item');
+}
+
+async function submitEditOrderItem() {
+  const errEl = document.getElementById('edit-order-item-err');
+  errEl.textContent = '';
+  const purpose = document.getElementById('edit-purpose').value.trim();
+  const itemName = document.getElementById('edit-item-name').value.trim();
+  if (!purpose) { errEl.textContent = '申請用途為必填'; return; }
+  if (!itemName) { errEl.textContent = '品名為必填'; return; }
+
+  showLoading('更新中...');
+  const res = await api('updateOrderItem', {
+    vesselCode: _editItemVessel,
+    itemNo: _editItemNo,
+    purpose,
+    equipment: document.getElementById('edit-equipment').value.trim(),
+    itemName,
+    partNo: document.getElementById('edit-part-no').value.trim(),
+    qty: document.getElementById('edit-qty').value,
+    unit: document.getElementById('edit-unit').value.trim(),
+    remark: document.getElementById('edit-remark').value.trim(),
+    expectedDate: document.getElementById('edit-expected-date').value
+  });
+  hideLoading();
+
+  if (res.success) {
+    closeModal('modal-edit-order-item');
+    if (_editItemSource === 'crew') {
+      _orderHistoryData = null;
+      loadOrderHistory();
+    } else {
+      _allOrdersData = null;
+      loadAllOrders();
+    }
+  } else {
+    errEl.textContent = res.message || '更新失敗';
+  }
+}
+
+async function deleteOrderItem(vesselCode, itemNo, source) {
+  if (!itemNo) { alert('找不到品項序號'); return; }
+  if (!confirm('確定刪除品項「' + itemNo + '」？\n此操作無法復原。')) return;
+  showLoading('刪除中...');
+  const res = await api('deleteOrderItem', { vesselCode, itemNo });
+  hideLoading();
+  if (res.success) {
+    if (source === 'crew') { _orderHistoryData = null; loadOrderHistory(); }
+    else { _allOrdersData = null; loadAllOrders(); }
+  } else {
+    alert('刪除失敗：' + res.message);
+  }
+}
 // ============================================================
 // 出貨紀錄
 // ============================================================
