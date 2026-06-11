@@ -2916,6 +2916,23 @@ function switchCrewDeliveryMonth(m) { _crewDeliveryLogMonth = m; renderCrewDeliv
 
 
 
+
+// 從出貨紀錄出簽收單（用 _deliveryLogData）
+function printReceiptFromDeliveryLog(orderNo, vesselCode) {
+  const items = (_deliveryLogData || []).filter(d =>
+    (d['order_no'] === orderNo) || (String(d['item_no'] || '').startsWith(orderNo))
+  );
+  if (items.length === 0) { alert('找不到訂單資料，請重新整理後再試。'); return; }
+  const backup = _allOrdersData;
+  _allOrdersData = items;
+  const html = buildReceiptHTML(orderNo, vesselCode);
+  _allOrdersData = backup;
+  if (!html) return;
+  window._receiptOrderNo = orderNo;
+  window._receiptVesselCode = vesselCode;
+  document.getElementById('receipt-content').innerHTML = html;
+  openModal('modal-receipt');
+}
 // 船員端出貨紀錄簽收單
 function printReceiptModalCrew(orderNo) {
   // 從 _crewDeliveryLogData 建立臨時 _allOrdersData 供 buildReceiptHTML 使用
@@ -3020,7 +3037,7 @@ function renderDeliveryLog() {
       '<span style="font-family:var(--font-mono);font-size:13px;font-weight:500">' + order.orderNo + '</span>' +
       '<span style="font-size:12px;color:var(--text2)">' + order.vessel + ' · ' + order.applicant + ' · ' + dateStr + '</span>' +
       '<div style="margin-left:auto">' +
-      '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModal(\'' + order.orderNo + '\',\'' + order.vessel + '\')">' +
+      '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptFromDeliveryLog(\'' + order.orderNo + '\',\'' + order.vessel + '\')">' +
       '<i class="ti ti-file-invoice"></i> 簽收單</button>' +
       '</div>' +
       '</div>' +
