@@ -2143,10 +2143,6 @@ async function loadAllOrders(month) {
     const _aDqty = parseFloat(d['delivered_qty'] || 0);
     const _aQty = parseFloat(d['qty'] || 0);
     if (_aQty > 0 && _aDqty >= _aQty) return;
-    // 排除已完全出貨的品項
-    const _aDqty = parseFloat(d['delivered_qty'] || 0);
-    const _aQty = parseFloat(d['qty'] || 0);
-    if (_aQty > 0 && _aDqty >= _aQty) return;
     orders[oNo].items.push(d);
   });
   Object.keys(orders).forEach(k => { if (orders[k].items.length === 0) delete orders[k]; });
