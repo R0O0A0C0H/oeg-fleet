@@ -3064,13 +3064,16 @@ function renderDeliveryLog() {
       '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg3);border-bottom:0.5px solid var(--border)">' +
       '<span style="font-family:var(--font-mono);font-size:13px;font-weight:500">' + order.orderNo + '</span>' +
       '<span style="font-size:12px;color:var(--text2)">' + order.vessel + ' · ' + order.applicant + ' · ' + dateStr + '</span>' +
-      '<div style="margin-left:auto">' +
+      '<div style="margin-left:auto;display:flex;gap:6px;align-items:center">' +
+      '<button class="btn btn-xs btn-danger" id="cancel-delivery-btn-' + oi + '" style="display:none;font-size:10px" onclick="event.stopPropagation();cancelSelectedDelivery(' + oi + ')">' +
+      '<i class="ti ti-package-off"></i> 取消出貨</button>' +
       '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptFromDeliveryLog(\'' + order.orderNo + '\',\'' + order.vessel + '\')">' +
       '<i class="ti ti-file-invoice"></i> 簽收單</button>' +
       '</div>' +
       '</div>' +
-      '<table class="data-table" style="table-layout:fixed;min-width:700px"><thead><tr>' +
-      '<th style="width:42px">#</th><th style="min-width:160px">品名</th><th style="width:110px">料號</th>' +
+      '<table class="data-table" style="table-layout:fixed;min-width:800px"><thead><tr>' +
+      '<th style="width:32px"><input type="checkbox" class="merge-check" onchange="toggleSelectAllDelivery(this,\'' + oi + '\')"></th>' +
+      '<th style="width:36px">#</th><th style="min-width:160px">品名</th><th style="width:110px">料號</th>' +
       '<th style="width:70px;text-align:center">申請數</th>' +
       '<th style="width:70px;text-align:center;color:var(--warning)">出貨數</th>' +
       '<th style="width:60px;text-align:center">剩餘</th>' +
@@ -3091,7 +3094,8 @@ function renderDeliveryLog() {
         statusHtml = '<span class="badge badge-pending">部分出貨</span>';
         rowStyle = 'background:rgba(243,156,18,0.04)';
       }
-      html += '<tr style="' + rowStyle + '">' +
+      html += '<tr style="' + rowStyle + '" class="delivery-row" data-itemno="' + (d['item_no']||'') + '" data-vessel="' + (d['vessel_code']||'') + '" data-oi="' + oi + '">' +
+        '<td style="text-align:center"><input type="checkbox" class="delivery-check merge-check" data-oi="' + oi + '" onchange="onDeliveryItemCheck(this)"></td>' +
         '<td class="text-mono text-xs">#' + String(ii+1).padStart(2,'0') + '</td>' +
         '<td>' + (d['item_name'] || '-') + '</td>' +
         '<td class="text-xs" style="font-family:monospace">' + (d['part_no'] || '-') + '</td>' +
@@ -3333,6 +3337,75 @@ function downloadPickListPDF() {
   win.document.close();
 }
 
+
+// ============================================================
+// 取消出貨
+// ============================================================
+let _deliverySelectedByOrder = {}; // { oi: [ {itemNo, vesselCode}, ... ] }
+
+function onDeliveryItemCheck(cb) {
+  const tr = cb.closest('tr');
+  const itemNo = tr.dataset.itemno;
+  const vesselCode = tr.dataset.vessel;
+  const oi = tr.dataset.oi;
+  tr.classList.toggle('merge-row-selected', cb.checked);
+
+  if (!_deliverySelectedByOrder[oi]) _deliverySelectedByOrder[oi] = [];
+  if (cb.checked) {
+    _deliverySelectedByOrder[oi].push({ itemNo, vesselCode });
+  } else {
+    _deliverySelectedByOrder[oi] = _deliverySelectedByOrder[oi].filter(i => i.itemNo !== itemNo);
+  }
+  // 顯示/隱藏該訂單的取消按鈕
+  const btn = document.getElementById('cancel-delivery-btn-' + oi);
+  if (btn) {
+    const count = _deliverySelectedByOrder[oi].length;
+    btn.style.display = count > 0 ? 'inline-flex' : 'none';
+    btn.innerHTML = '<i class="ti ti-package-off"></i> 取消出貨（' + count + '）';
+  }
+}
+
+function toggleSelectAllDelivery(masterCb, oi) {
+  const rows = document.querySelectorAll('.delivery-row[data-oi="' + oi + '"] .delivery-check');
+  rows.forEach(cb => {
+    if (cb.checked !== masterCb.checked) {
+      cb.checked = masterCb.checked;
+      onDeliveryItemCheck(cb);
+    }
+  });
+}
+
+async function cancelSelectedDelivery(oi) {
+  const selected = _deliverySelectedByOrder[oi] || [];
+  if (selected.length === 0) return;
+  if (!confirm('確定取消這 ' + selected.length + ' 個品項的出貨記錄？\n品項將回到訂單管理，待出貨數量會恢復。')) return;
+
+  showLoading('取消出貨中...');
+  let failCount = 0;
+  for (const item of selected) {
+    const res = await api('updateDeliveredQty', {
+      vesselCode: item.vesselCode,
+      itemNo: item.itemNo,
+      deliveredQty: 0
+    });
+    if (!res.success) failCount++;
+  }
+  hideLoading();
+
+  _deliverySelectedByOrder[oi] = [];
+  if (failCount > 0) alert('部分取消失敗（' + failCount + ' 筆），請重新整理確認。');
+
+  // 同步更新訂單管理快取
+  if (_allOrdersData) {
+    selected.forEach(item => {
+      const found = _allOrdersData.find(d => d['item_no'] === item.itemNo);
+      if (found) found['delivered_qty'] = 0;
+    });
+  }
+  // 重整兩個頁面
+  loadDeliveryLog();
+  loadAllOrders();
+}
 // ============================================================
 // 紀錄出貨
 // ============================================================
