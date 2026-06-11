@@ -1575,10 +1575,11 @@ function renderOrderHistory() {
   data.forEach(d => {
     const oNo = d['order_no'] || '-';
     if (!orders[oNo]) orders[oNo] = { orderNo: oNo, date: d['submit_date'], items: [] };
-    // 排除已完全出貨的品項
+    // 完全出貨才從訂購紀錄移除
     const _hDqty = parseFloat(d['delivered_qty'] || 0);
     const _hQty = parseFloat(d['qty'] || 0);
-    if (_hDqty > 0 && (_hQty === 0 || _hDqty >= _hQty)) return;
+    if (_hQty > 0 && _hDqty >= _hQty) return;
+    if (_hQty === 0 && _hDqty > 0) return;
     orders[oNo].items.push(d);
   });
   Object.keys(orders).forEach(k => { if (orders[k].items.length === 0) delete orders[k]; });
@@ -2185,11 +2186,11 @@ async function loadAllOrders(month) {
   data.forEach(d => {
     const oNo = d['order_no'] || d['item_no'] || '-';
     if (!orders[oNo]) orders[oNo] = { orderNo: oNo, vessel: d['vessel_code'], applicant: d['applicant_zh'], date: d['submit_date'], items: [], images: d['images'] || '' };
-    // 排除已完全出貨的品項
+    // 完全出貨才從訂單管理移除（部分出貨繼續顯示，待出貨欄會顯示剩餘數量）
     const _aDqty = parseFloat(d['delivered_qty'] || 0);
     const _aQty = parseFloat(d['qty'] || 0);
-    // qty 為空時，只要有出貨記錄就視為已出貨
-    if (_aDqty > 0 && (_aQty === 0 || _aDqty >= _aQty)) return;
+    if (_aQty > 0 && _aDqty >= _aQty) return; // 完全出貨才移除
+    if (_aQty === 0 && _aDqty > 0) return;    // qty 空但有出貨記錄也視為完全出貨
     orders[oNo].items.push(d);
   });
   Object.keys(orders).forEach(k => { if (orders[k].items.length === 0) delete orders[k]; });
@@ -2289,11 +2290,14 @@ async function loadAllOrders(month) {
         '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
         '<td><span class="badge ' + badgeClass + '" id="ibadge-' + oi + '-' + ii + '">' + badgeText + '</span></td>' +
         '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:88px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
-        '<td style="text-align:center;color:var(--warning);font-weight:600;font-size:12px">' + (() => {
+        '<td style="text-align:center;font-weight:600;font-size:12px">' + (() => {
           const _dq = parseFloat(d['delivered_qty'] || 0);
           const _q = parseFloat(d['qty'] || 0);
-          const _rem = _q > 0 ? Math.max(0, _q - _dq) : (_dq > 0 ? 0 : (_q || '—'));
-          return _rem === '—' ? '—' : (_rem > 0 ? _rem + ' ' + (d['unit']||'') : '<span style="color:var(--success)">✓</span>');
+          if (_q === 0 && _dq === 0) return '<span style="color:var(--text3)">—</span>';
+          if (_q === 0 && _dq > 0) return '<span style="color:var(--success)">✓ 已出</span>';
+          const _rem = Math.max(0, _q - _dq);
+          if (_rem === 0) return '<span style="color:var(--success)">✓</span>';
+          return '<span style="color:var(--warning)">' + _rem + ' ' + (d['unit']||'') + '</span>';
         })() + '</td>' +
         progHtml +
         '<td><div style="display:flex;flex-direction:column;gap:3px" id="ibtn-' + oi + '-' + ii + '">' +
