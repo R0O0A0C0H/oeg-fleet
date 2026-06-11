@@ -2286,7 +2286,7 @@ async function loadAllOrders(month) {
         '<td style="font-size:11px">' + (d['equipment'] || '-') + '</td>' +
         '<td style="font-size:11px;word-break:break-all">' + (d['remark'] || '-') + '</td>' +
         '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
-        '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:88px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
+        '<td id="istatus-' + oi + '-' + ii + '">' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:88px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
         '<td style="text-align:center;font-weight:600;font-size:12px">' + (() => {
           const _dq = parseFloat(d['delivered_qty'] || 0);
           const _q = parseFloat(d['qty'] || 0);
@@ -2332,10 +2332,19 @@ function orderItemAction(vesselCode, itemNo, action, orderIdx, ii) {
   pendingApprovals[itemNo] = { vesselCode, itemNo, isApproved: 'approved', status: '備料中', approvedBy: currentAdmin?.accountId };
   const row = document.getElementById('orow-' + orderIdx + '-' + ii);
   if (row) {
-    row.cells[6].innerHTML = '<span class="badge badge-approved">批准</span>';
-    row.cells[7].innerHTML = '<select style="font-size:11px;padding:3px 6px;width:90px"><option selected>備料中</option></select>';
-    row.cells[8].innerHTML = '<button class="btn btn-xs btn-success" onclick="orderItemAction(\'' + vesselCode + '\',\'' + itemNo + '\',\'批准\',' + orderIdx + ',' + ii + ')">批准</button>' +
-      '<button class="btn btn-xs btn-danger" onclick="orderItemAction(\'' + vesselCode + '\',\'' + itemNo + '\',\'拒絕\',' + orderIdx + ',' + ii + ')">拒絕</button>';
+    const statusCell = document.getElementById('istatus-' + orderIdx + '-' + ii);
+    if (statusCell) statusCell.innerHTML = '<select style="font-size:11px;padding:3px 6px;width:88px"><option selected>備料中</option></select>';
+    const btnCell = document.getElementById('ibtn-' + orderIdx + '-' + ii)?.closest('td');
+    if (btnCell) btnCell.innerHTML = '<div style="display:flex;flex-direction:column;gap:3px">' +
+      '<div style="display:flex;gap:3px">' +
+      '<button class="btn btn-xs btn-success" onclick="orderItemAction(\'' + vesselCode + '\',\'' + itemNo + '\',\'批准\',' + orderIdx + ',' + ii + ')"><i class="ti ti-check"></i>批准</button>' +
+      '<button class="btn btn-xs btn-danger" onclick="orderItemAction(\'' + vesselCode + '\',\'' + itemNo + '\',\'拒絕\',' + orderIdx + ',' + ii + ')"><i class="ti ti-x"></i>拒絕</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:3px">' +
+      '<button class="btn btn-xs" onclick="openEditOrderItem(\'' + vesselCode + '\',\'' + itemNo + '\',\'' + encodeURIComponent(JSON.stringify({})) + '\')">' +
+      '<i class="ti ti-edit"></i>編輯</button>' +
+      '<button class="btn btn-xs btn-danger" onclick="deleteOrderItem(\'' + vesselCode + '\',\'' + itemNo + '\',\'admin\')"><i class="ti ti-trash"></i>刪除</button>' +
+      '</div></div>';
   }
   const count = Object.keys(pendingApprovals).length;
   const submitBtn = document.getElementById('submit-approvals-btn');
@@ -2350,10 +2359,19 @@ function submitRejectOrder() {
   pendingApprovals[itemNo] = { vesselCode, itemNo, isApproved: 'rejected', status: '已拒絕', rejectReason: reason, approvedBy: currentAdmin?.accountId };
   const row = document.getElementById('orow-' + orderIdx + '-' + ii);
   if (row) {
-    row.cells[6].innerHTML = '<span class="badge badge-rejected">拒絕</span>';
-    row.cells[7].innerHTML = '—';
-    row.cells[8].innerHTML = '<button class="btn btn-xs btn-success" onclick="orderItemAction(\'' + vesselCode + '\',\'' + itemNo + '\',\'批准\',' + orderIdx + ',' + ii + ')">批准</button>' +
-      '<button class="btn btn-xs btn-danger" onclick="orderItemAction(\'' + vesselCode + '\',\'' + itemNo + '\',\'拒絕\',' + orderIdx + ',' + ii + ')">拒絕</button>';
+    const statusCellR = document.getElementById('istatus-' + orderIdx + '-' + ii);
+    if (statusCellR) statusCellR.innerHTML = '—';
+    const btnCellR = document.getElementById('ibtn-' + orderIdx + '-' + ii)?.closest('td');
+    if (btnCellR) btnCellR.innerHTML = '<div style="display:flex;flex-direction:column;gap:3px">' +
+      '<div style="display:flex;gap:3px">' +
+      '<button class="btn btn-xs btn-success" onclick="orderItemAction(\'' + vesselCode + '\',\'' + itemNo + '\',\'批准\',' + orderIdx + ',' + ii + ')"><i class="ti ti-check"></i>批准</button>' +
+      '<button class="btn btn-xs btn-danger" onclick="orderItemAction(\'' + vesselCode + '\',\'' + itemNo + '\',\'拒絕\',' + orderIdx + ',' + ii + ')"><i class="ti ti-x"></i>拒絕</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:3px">' +
+      '<button class="btn btn-xs" onclick="openEditOrderItem(\'' + vesselCode + '\',\'' + itemNo + '\',\'' + encodeURIComponent(JSON.stringify({})) + '\')">' +
+      '<i class="ti ti-edit"></i>編輯</button>' +
+      '<button class="btn btn-xs btn-danger" onclick="deleteOrderItem(\'' + vesselCode + '\',\'' + itemNo + '\',\'admin\')"><i class="ti ti-trash"></i>刪除</button>' +
+      '</div></div>';
   }
   const count = Object.keys(pendingApprovals).length;
   const submitBtn = document.getElementById('submit-approvals-btn');
