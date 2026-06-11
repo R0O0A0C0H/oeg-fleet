@@ -2215,21 +2215,24 @@ async function loadAllOrders(month) {
       '<span class="badge ' + orderBadgeClass + '" id="obadge-' + oi + '">' + orderBadge + '</span>' +
       (imgsHtml ? imgsHtml : '') +
       '<div style="margin-left:auto;display:flex;align-items:center;gap:6px">' +'<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModal(\'' + order.orderNo + '\',\'' + order.vessel + '\')"><i class="ti ti-file-invoice"></i> 簽收單</button>' +'<i class="ti ti-chevron-down" style="color:var(--text3);transition:transform 0.2s" id="ochev-' + oi + '" aria-hidden="true"></i>' +'</div></div>' +
-      '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table" style="table-layout:fixed;min-width:1200px"><thead><tr>' +
+      '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table" style="table-layout:fixed;min-width:1400px"><thead><tr>' +
       '<colgroup>' +
       '<col style="width:32px">' +
-      '<col style="width:42px">' +
-      '<col style="width:180px">' +
-      '<col style="width:100px">' +
-      '<col style="width:70px">' +
-      '<col style="width:90px">' +
-      '<col style="width:90px">' +
-      '<col style="width:70px">' +
-      '<col style="width:100px">' +
-      '<col style="min-width:240px">' +
+      '<col style="width:36px">' +
       '<col style="width:140px">' +
+      '<col style="width:90px">' +
+      '<col style="width:60px">' +
+      '<col style="width:80px">' +
+      '<col style="width:80px">' +
+      '<col style="width:80px">' +
+      '<col style="width:80px">' +
+      '<col style="width:60px">' +
+      '<col style="width:90px">' +
+      '<col style="width:60px">' +
+      '<col style="min-width:160px">' +
+      '<col style="width:100px">' +
       '</colgroup>' +
-      '<th style="width:32px"><input type="checkbox" class="merge-check" title="全選/取消" onchange="toggleSelectAllItems(this,\'' + oi + '\')" id="chk-all-' + oi + '"></th><th style="width:42px">#</th><th style="width:180px">品名</th><th style="width:100px">料號</th><th style="width:70px">申請數</th><th style="width:90px">申請用途</th><th style="width:90px">期望到貨</th><th style="width:70px">批准狀態</th><th style="width:100px">目前狀態</th><th style="min-width:240px">處理進度</th><th style="width:140px">操作</th>' +
+      '<th style="width:32px"><input type="checkbox" class="merge-check" title="全選/取消" onchange="toggleSelectAllItems(this,\'' + oi + '\')" id="chk-all-' + oi + '"></th><th style="width:36px">#</th><th style="width:140px">品名</th><th style="width:90px">料號</th><th style="width:60px">申請數</th><th style="width:80px">申請用途</th><th style="width:80px">何項設備</th><th style="width:80px">備註</th><th style="width:80px">期望到貨</th><th style="width:60px">批准狀態</th><th style="width:90px">目前狀態</th><th style="width:60px;color:var(--warning)">待出貨</th><th style="min-width:160px">處理進度</th><th style="width:100px">操作</th>' +
       '</tr></thead><tbody>';
 
     order.items.forEach((d, ii) => {
@@ -2281,14 +2284,24 @@ async function loadAllOrders(month) {
         '<td style="font-size:11px">' + (d['part_no'] || '-') + '</td>' +
         '<td>' + (d['qty'] || '-') + ' ' + (d['unit'] || '') + '</td>' +
         '<td style="font-size:11px">' + (d['purpose'] || '-') + '</td>' +
+        '<td style="font-size:11px">' + (d['equipment'] || '-') + '</td>' +
+        '<td style="font-size:11px">' + (d['remark'] || '-') + '</td>' +
         '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
         '<td><span class="badge ' + badgeClass + '" id="ibadge-' + oi + '-' + ii + '">' + badgeText + '</span></td>' +
-        '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
+        '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:88px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
+        '<td style="text-align:center;color:var(--warning);font-weight:600;font-size:12px">' + (() => {
+          const _dq = parseFloat(d['delivered_qty'] || 0);
+          const _q = parseFloat(d['qty'] || 0);
+          const _rem = _q > 0 ? Math.max(0, _q - _dq) : (_dq > 0 ? 0 : (_q || '—'));
+          return _rem === '—' ? '—' : (_rem > 0 ? _rem + ' ' + (d['unit']||'') : '<span style="color:var(--success)">✓</span>');
+        })() + '</td>' +
         progHtml +
-        '<td><div class="flex gap4" id="ibtn-' + oi + '-' + ii + '">' + btns +
+        '<td><div style="display:flex;flex-direction:column;gap:3px" id="ibtn-' + oi + '-' + ii + '">' +
+        '<div style="display:flex;gap:3px">' + btns + '</div>' +
+        '<div style="display:flex;gap:3px">' +
         '<button class="btn btn-xs" onclick="openEditOrderItem(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'' + encodeURIComponent(JSON.stringify(d)) + '\')"><i class="ti ti-edit"></i>編輯</button>' +
         '<button class="btn btn-xs btn-danger" onclick="deleteOrderItem(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'admin\')"><i class="ti ti-trash"></i>刪除</button>' +
-        '</div></td></tr>';
+        '</div></div></td></tr>';
     });
     html += '</tbody></table></div></div></div>';
   });
