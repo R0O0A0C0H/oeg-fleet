@@ -2217,7 +2217,7 @@ async function loadAllOrders(month) {
       '<span class="badge ' + orderBadgeClass + '" id="obadge-' + oi + '">' + orderBadge + '</span>' +
       (imgsHtml ? imgsHtml : '') +
       '<div style="margin-left:auto;display:flex;align-items:center;gap:6px">' +'<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModal(\'' + order.orderNo + '\',\'' + order.vessel + '\')"><i class="ti ti-file-invoice"></i> 簽收單</button>' +'<i class="ti ti-chevron-down" style="color:var(--text3);transition:transform 0.2s" id="ochev-' + oi + '" aria-hidden="true"></i>' +'</div></div>' +
-      '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table" style="table-layout:fixed;min-width:1300px"><thead><tr>' +
+      '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table" style="table-layout:fixed;min-width:1500px"><thead><tr>' +
       '<colgroup>' +
       '<col style="width:32px">' +
       '<col style="width:36px">' +
@@ -2225,14 +2225,15 @@ async function loadAllOrders(month) {
       '<col style="width:100px">' +
       '<col style="width:65px">' +
       '<col style="width:80px">' +
-      '<col style="width:130px">' +
+      '<col style="width:100px">' +
+      '<col style="width:210px">' +
       '<col style="width:85px">' +
       '<col style="width:100px">' +
       '<col style="width:65px">' +
       '<col style="width:110px">' +
       '<col style="min-width:220px">' +
       '</colgroup>' +
-      '<th style="width:32px"><input type="checkbox" class="merge-check" title="全選/取消" onchange="toggleSelectAllItems(this,\'' + oi + '\')" id="chk-all-' + oi + '"></th><th style="width:36px">#</th><th style="width:160px">品名</th><th style="width:100px">料號</th><th style="width:65px">申請數</th><th style="width:80px">申請用途</th><th style="width:130px">設備/備註</th><th style="width:85px">期望到貨</th><th style="width:100px">目前狀態</th><th style="width:65px;color:var(--warning)">待出貨</th><th style="width:110px">操作</th><th style="min-width:220px">處理進度</th>' +
+      '<th style="width:32px"><input type="checkbox" class="merge-check" title="全選/取消" onchange="toggleSelectAllItems(this,\'' + oi + '\')" id="chk-all-' + oi + '"></th><th style="width:36px">#</th><th style="width:160px">品名</th><th style="width:100px">料號</th><th style="width:65px">申請數</th><th style="width:80px">申請用途</th><th style="width:100px">何項設備</th><th style="width:210px">備註</th><th style="width:85px">期望到貨</th><th style="width:100px">目前狀態</th><th style="width:65px;color:var(--warning)">待出貨</th><th style="width:110px">操作</th><th style="min-width:220px">處理進度</th>' +
       '</tr></thead><tbody>';
 
     order.items.forEach((d, ii) => {
@@ -2282,8 +2283,8 @@ async function loadAllOrders(month) {
         '<td style="font-size:11px">' + (d['part_no'] || '-') + '</td>' +
         '<td>' + (d['qty'] || '-') + ' ' + (d['unit'] || '') + '</td>' +
         '<td style="font-size:11px">' + (d['purpose'] || '-') + '</td>' +
-        '<td style="font-size:11px">' + (d['equipment'] || '-') + 
-          (d['remark'] ? '<br><span style="color:var(--text3);font-size:10px">備註：' + d['remark'] + '</span>' : '') + '</td>' +
+        '<td style="font-size:11px">' + (d['equipment'] || '-') + '</td>' +
+        '<td style="font-size:11px;word-break:break-all">' + (d['remark'] || '-') + '</td>' +
         '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
         '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:88px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
         '<td style="text-align:center;font-weight:600;font-size:12px">' + (() => {
