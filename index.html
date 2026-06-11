@@ -3133,6 +3133,7 @@ function openRecordDeliveryModal() {
 async function submitRecordDelivery() {
   showLoading('寫入出貨記錄中...');
   let failCount = 0;
+  let failMessages = [];
   for (let i = 0; i < mergeSelectedItems.length; i++) {
     const item = mergeSelectedItems[i];
     const dqty = document.getElementById('rdqty_' + i)?.value || item.qty;
@@ -3141,7 +3142,10 @@ async function submitRecordDelivery() {
       itemNo: item.itemNo,
       deliveredQty: dqty
     });
-    if (!res.success) failCount++;
+    if (!res.success) {
+      failCount++;
+      failMessages.push(item.itemNo + ': ' + (res.message || 'unknown error'));
+    }
   }
   hideLoading();
 
@@ -3158,7 +3162,9 @@ async function submitRecordDelivery() {
   });
 
   closeModal('modal-record-delivery');
-  if (failCount > 0) alert('部分記錄失敗（' + failCount + ' 筆），請重新整理確認。');
+  if (failCount > 0) {
+    alert('部分記錄失敗（' + failCount + ' 筆）：\n' + failMessages.join('\n'));
+  }
 
   // 重新載入（完全出貨的品項會自動消失）
   _allOrdersData = null;
