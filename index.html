@@ -250,23 +250,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 .vessel-chip-opt.selected{background:rgba(59,158,255,0.15);border-color:var(--accent);color:var(--accent)}
 </style>
 
-<script>
-// 自動版本號 cache buster
-(function() {
-  var BUILD = '20260613';
-  try {
-    var search = location.search;
-    var hasV = search.indexOf('v=' + BUILD) >= 0;
-    if (!hasV) {
-      var sep = search.indexOf('?') >= 0 ? '&' : '?';
-      // 移除舊的 v= 參數
-      var clean = search.replace(/[?&]v=[^&]*/g, '').replace(/^&/, '?');
-      var newUrl = location.pathname + (clean || '') + (clean ? '&' : '?') + 'v=' + BUILD + location.hash;
-      location.replace(newUrl);
-    }
-  } catch(e) {}
-})();
-</script>
+<!-- v20260613 -->
 </head>
 <body>
 
