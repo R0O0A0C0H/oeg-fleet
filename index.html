@@ -907,6 +907,23 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
     </div>
   </div>
 </div>
+
+<!-- 修改出貨數量 Modal -->
+<div class="modal-overlay" id="modal-edit-dqty">
+  <div class="modal" style="width:360px">
+    <div class="modal-title"><i class="ti ti-package"></i> 修改出貨數量</div>
+    <div class="text-sm text-dim" id="edit-dqty-label" style="margin-bottom:12px"></div>
+    <div class="form-group">
+      <label class="form-label">出貨數量</label>
+      <input type="number" id="edit-dqty-input" min="0" style="font-size:16px;text-align:center">
+    </div>
+    <div class="err-msg" id="edit-dqty-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-edit-dqty')">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="submitEditDeliveredQty()"><i class="ti ti-check"></i>確認修改</button>
+    </div>
+  </div>
+</div>
 <!-- 編輯訂購品項 Modal -->
 <div class="modal-overlay" id="modal-edit-order-item">
   <div class="modal" style="width:500px;max-width:96vw">
@@ -2845,6 +2862,44 @@ let _crewDeliveryLogMonth = null;
 function switchDeliveryLogMonth(m) { _deliveryLogMonth = m; renderDeliveryLog(); }
 function switchCrewDeliveryMonth(m) { _crewDeliveryLogMonth = m; renderCrewDeliveryLog(); }
 
+
+// ── 修改出貨數量 ──────────────────────────────────────────────
+let _editDqtyVessel = '', _editDqtyItemNo = '';
+
+function openEditDeliveredQty(vesselCode, itemNo, currentQty) {
+  _editDqtyVessel = vesselCode;
+  _editDqtyItemNo = itemNo;
+  document.getElementById('edit-dqty-label').textContent = '品項序號：' + itemNo;
+  document.getElementById('edit-dqty-input').value = currentQty || '';
+  document.getElementById('edit-dqty-err').textContent = '';
+  openModal('modal-edit-dqty');
+  setTimeout(() => document.getElementById('edit-dqty-input').select(), 100);
+}
+
+async function submitEditDeliveredQty() {
+  const val = document.getElementById('edit-dqty-input').value.trim();
+  if (val === '') { document.getElementById('edit-dqty-err').textContent = '請輸入出貨數量'; return; }
+  showLoading('更新中...');
+  const res = await api('updateDeliveredQty', {
+    vesselCode: _editDqtyVessel,
+    itemNo: _editDqtyItemNo,
+    deliveredQty: val
+  });
+  hideLoading();
+  if (res.success) {
+    closeModal('modal-edit-dqty');
+    // 更新本地快取
+    if (_allOrdersData) {
+      const found = _allOrdersData.find(d => d['item_no'] === _editDqtyItemNo);
+      if (found) found['delivered_qty'] = val;
+    }
+    // 同時重整出貨紀錄和訂單管理（讓品項自動回流）
+    loadDeliveryLog();
+    loadAllOrders();
+  } else {
+    document.getElementById('edit-dqty-err').textContent = res.message || '更新失敗';
+  }
+}
 // ── 管理端 ──────────────────────────────────────────────────
 async function loadDeliveryLog() {
   const el = document.getElementById('delivery-log-content');
@@ -2899,6 +2954,7 @@ function renderDeliveryLog() {
       '<th style="width:70px;text-align:center;color:var(--warning)">出貨數</th>' +
       '<th style="width:60px;text-align:center">剩餘</th>' +
       '<th style="width:80px">出貨狀態</th>' +
+      '<th style="width:70px">操作</th>' +
       '</tr></thead><tbody>';
 
     order.items.forEach((d, ii) => {
@@ -2923,6 +2979,7 @@ function renderDeliveryLog() {
         '<td style="text-align:center;color:' + (remaining > 0 ? 'var(--danger)' : 'var(--success)') + ';font-weight:500">' +
           (remaining > 0 ? remaining + ' ' + unit : '—') + '</td>' +
         '<td>' + statusHtml + '</td>' +
+        '<td><button class="btn btn-xs" onclick="openEditDeliveredQty(\'' + d['vessel_code'] + '\',\'' + (d['item_no']||'') + '\',\'' + dqty + '\')"><i class="ti ti-edit"></i>修改</button></td>' +
         '</tr>';
     });
     html += '</tbody></table></div>';
