@@ -1601,7 +1601,9 @@ function renderOrderHistory() {
       '<span style="font-size:12px;color:var(--text2)">' + dateStr + ' · ' + order.items.length + ' 項</span>' +
       '<span class="badge ' + orderBadgeClass + '">' + orderBadge + '</span>' +
       '<i class="ti ti-chevron-down" style="margin-left:auto;color:var(--text3);transition:transform 0.2s" id="cchev' + oi + '" aria-hidden="true"></i></div>' +
-      '<div id="co' + oi + '"><table class="data-table"><thead><tr><th>#</th><th>品名</th><th>數量</th><th>批准狀態</th><th>目前狀態</th><th>處理進度</th></tr></thead><tbody>';
+      '<div id="co' + oi + '" style="overflow-x:auto"><table class="data-table" style="table-layout:fixed;min-width:1100px">' +
+      '<colgroup><col style="width:36px"><col style="width:160px"><col style="width:100px"><col style="width:65px"><col style="width:80px"><col style="width:100px"><col style="width:130px"><col style="width:85px"><col style="width:60px"><col style="width:100px"><col style="width:65px"><col style="min-width:200px"><col style="width:110px"></colgroup>' +
+      '<thead><tr><th>#</th><th>品名</th><th>料號</th><th>申請數</th><th>申請用途</th><th>何項設備</th><th>備註</th><th>期望到貨</th><th>批准</th><th>目前狀態</th><th style="color:var(--warning)">待出貨</th><th>處理進度</th><th>操作</th></tr></thead><tbody>';
     order.items.forEach((d, ii) => {
       const seqNum = '#' + String(ii+1).padStart(2,'0');
       const approved = d['is_approved'] || 'pending';
@@ -1610,12 +1612,24 @@ function renderOrderHistory() {
       const status = d['status'] || '-';
       const statusClass = status === '已到貨' ? 'badge-approved' : status === '已拒絕' ? 'badge-rejected' : status === '待處理' ? 'badge-pending' : 'badge-info';
       const progress = d['progress'] || '';
+      const _cDqty = parseFloat(d['delivered_qty'] || 0);
+      const _cQty = parseFloat(d['qty'] || 0);
+      const _cRem = _cQty > 0 ? Math.max(0, _cQty - _cDqty) : (_cDqty > 0 ? 0 : null);
+      const pendingHtml = _cRem === null ? '<span style="color:var(--text3)">—</span>' : (_cRem === 0 ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--warning);font-weight:600">' + _cRem + ' ' + (d['unit']||'') + '</span>');
+      const progHtml2 = progress ? '<div class="prog-display" style="max-height:60px;overflow-y:auto"><div class="prog-latest">' + progress.split('\n').pop() + '</div></div>' : '';
       html += '<tr><td style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">' + seqNum + '</td>' +
-        '<td>' + (d['item_name'] || '-') + '</td><td>' + (d['qty'] || '-') + ' ' + (d['unit'] || '') + '</td>' +
+        '<td>' + (d['item_name'] || '-') + '</td>' +
+        '<td style="font-size:11px">' + (d['part_no'] || '-') + '</td>' +
+        '<td style="font-size:11px">' + (d['qty'] || '-') + ' ' + (d['unit'] || '') + '</td>' +
+        '<td style="font-size:11px">' + (d['purpose'] || '-') + '</td>' +
+        '<td style="font-size:11px">' + (d['equipment'] || '-') + '</td>' +
+        '<td style="font-size:11px;word-break:break-all">' + (d['remark'] || '-') + '</td>' +
+        '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
         '<td><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
         '<td><span class="badge ' + statusClass + '">' + status + '</span></td>' +
-        '<td><div style="width:200px;max-height:80px;overflow-y:auto;white-space:pre-wrap;font-size:11px;color:var(--text2);background:var(--bg3);border:0.5px solid var(--border);border-radius:4px;padding:4px 6px;line-height:1.6">' + (progress || '-') + '</div></td>' +
-        '<td><div class="flex gap4">' +
+        '<td style="text-align:center">' + pendingHtml + '</td>' +
+        '<td>' + progHtml2 + '</td>' +
+        '<td style="padding-right:8px"><div style="display:flex;flex-direction:column;gap:3px">' +
         '<button class="btn btn-xs" ' +
           'data-vessel="' + currentUser.vesselCode + '" ' +
           'data-itemno="' + (d['item_no'] || '') + '" ' +
