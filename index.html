@@ -896,7 +896,8 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       <thead><tr>
         <th>訂單號</th><th>品名</th><th>料號</th>
         <th style="text-align:center">申請數</th>
-        <th style="text-align:center;color:var(--warning)">出貨數量 ✎</th>
+        <th style="text-align:center;color:var(--success)">已出貨</th>
+        <th style="text-align:center;color:var(--warning)">本次出貨 ✎</th>
         <th>船隻</th>
       </tr></thead>
       <tbody id="record-delivery-tbody"></tbody>
@@ -3234,13 +3235,21 @@ function openRecordDeliveryModal() {
   tbody.innerHTML = '';
   mergeSelectedItems.forEach((item, i) => {
     const tr = document.createElement('tr');
-    const initQty = item.qty || '';
+    const qty = parseFloat(item.qty || 0);
+    const alreadyDelivered = parseFloat(item.deliveredQty || 0);
+    // 預帶數量 = 待出數量（申請數 - 已出貨），最小為 0
+    const remaining = qty > 0 ? Math.max(0, qty - alreadyDelivered) : (alreadyDelivered > 0 ? 0 : (qty || ''));
+    const initQty = remaining || '';
+    const alreadyText = alreadyDelivered > 0
+      ? '<span style="color:var(--success);font-weight:600">' + alreadyDelivered + ' ' + item.unit + '</span>'
+      : '<span style="color:var(--text3)">—</span>';
     tr.innerHTML =
       '<td class="text-mono text-xs">' + item.orderNo + '</td>' +
       '<td>' + item.itemName + '</td>' +
       '<td class="text-xs" style="font-family:monospace">' + (item.partNo || '-') + '</td>' +
-      '<td style="text-align:center">' + item.qty + ' ' + item.unit + '</td>' +
-      '<td style="text-align:center"><input type="number" id="rdqty_' + i + '" value="' + initQty + '" min="0" placeholder="' + item.qty + '" style="width:60px;padding:3px 6px;font-size:12px;text-align:center;border:0.5px solid var(--warning);background:var(--bg3);border-radius:var(--radius);color:var(--text)"></td>' +
+      '<td style="text-align:center">' + (item.qty || '-') + ' ' + item.unit + '</td>' +
+      '<td style="text-align:center">' + alreadyText + '</td>' +
+      '<td style="text-align:center"><input type="number" id="rdqty_' + i + '" value="' + initQty + '" min="0" placeholder="0" style="width:60px;padding:3px 6px;font-size:12px;text-align:center;border:0.5px solid var(--warning);background:var(--bg3);border-radius:var(--radius);color:var(--text)"></td>' +
       '<td><span class="badge badge-active" style="font-size:10px">' + item.vesselCode + '</span></td>';
     tbody.appendChild(tr);
   });
@@ -3257,11 +3266,17 @@ async function submitRecordDelivery() {
   for (let i = 0; i < mergeSelectedItems.length; i++) {
     const item = mergeSelectedItems[i];
     const dqty = document.getElementById('rdqty_' + i)?.value || item.qty;
-    deliveredMap[item.itemNo] = { vesselCode: item.vesselCode, dqty };
+    const _prevDq = parseFloat(item.deliveredQty || 0);
+    const _totalDq = _prevDq + parseFloat(dqty || 0);
+    deliveredMap[item.itemNo] = { vesselCode: item.vesselCode, dqty: String(_totalDq) };
+    // 累加：已出貨 + 本次出貨
+    const _prevDqty = parseFloat(item.deliveredQty || 0);
+    const _thisDqty = parseFloat(dqty || 0);
+    const _totalDqty = _prevDqty + _thisDqty;
     const res = await api('updateDeliveredQty', {
       vesselCode: item.vesselCode,
       itemNo: item.itemNo,
-      deliveredQty: dqty
+      deliveredQty: _totalDqty
     });
     if (!res.success) {
       failCount++;
