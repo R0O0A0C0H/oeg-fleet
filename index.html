@@ -253,7 +253,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 <script>
 // 自動版本號 cache buster
 (function() {
-  var BUILD = '20260612';
+  var BUILD = '20260613';
   var url = new URL(location.href);
   if (url.searchParams.get('v') !== BUILD) {
     url.searchParams.set('v', BUILD);
@@ -602,7 +602,8 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="action-bar-right">
           <button class="btn btn-sm btn-primary" id="submit-approvals-btn" style="display:none" onclick="submitAllApprovals()"><i class="ti ti-check"></i>送出審核結果</button>
           <button class="btn btn-sm btn-success" id="submit-order-progress-btn" style="display:none" onclick="submitAllOrderProgress()"><i class="ti ti-send"></i>送出進度更新</button>
-          <button class="btn btn-sm" id="submit-delivery-btn" style="display:none;background:rgba(243,156,18,0.15);border-color:rgba(243,156,18,0.4);color:var(--warning)" onclick="submitAllDelivery()"><i class="ti ti-package"></i>送出出貨記錄</button>
+          
+          <button class="btn btn-sm" id="record-delivery-btn" style="display:none;background:rgba(243,156,18,0.12);border-color:rgba(243,156,18,0.4);color:var(--warning)" onclick="openRecordDeliveryModal()"><i class="ti ti-package"></i>紀錄出貨</button>
           <button class="btn btn-sm" id="merge-receipt-btn" style="display:none;border-color:rgba(52,152,219,0.4);color:var(--info)" onclick="openMergeReceiptModal()"><i class="ti ti-files"></i>合併出單</button>
           <button class="btn btn-sm" id="pick-list-btn" style="display:none;border-color:rgba(155,89,182,0.4);color:#9b59b6" onclick="openPickListModal()"><i class="ti ti-list-check"></i>撿貨單</button>
           <button class="btn btn-sm" onclick="toggleSettingsPanel('order-settings-panel')"><i class="ti ti-settings"></i>狀態／操作設定</button>
@@ -888,6 +889,30 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
   </div>
 </div>
 
+
+<!-- 紀錄出貨 Modal -->
+<div class="modal-overlay" id="modal-record-delivery" style="z-index:400">
+  <div class="modal" style="width:700px;max-width:96vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-title"><i class="ti ti-package"></i> 紀錄出貨</div>
+    <div class="notice notice-info" style="margin-bottom:12px">
+      <i class="ti ti-info-circle"></i>
+      <span>填入各品項的實際出貨數量後送出。完全出貨的品項將從訂單管理中移除。</span>
+    </div>
+    <table class="data-table" id="record-delivery-table">
+      <thead><tr>
+        <th>訂單號</th><th>品名</th><th>料號</th>
+        <th style="text-align:center">申請數</th>
+        <th style="text-align:center;color:var(--warning)">出貨數量 ✎</th>
+        <th>船隻</th>
+      </tr></thead>
+      <tbody id="record-delivery-tbody"></tbody>
+    </table>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-record-delivery')">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="submitRecordDelivery()"><i class="ti ti-package"></i> 送出出貨記錄</button>
+    </div>
+  </div>
+</div>
 <!-- 編輯訂購品項 Modal -->
 <div class="modal-overlay" id="modal-edit-order-item">
   <div class="modal" style="width:500px;max-width:96vw">
@@ -1514,8 +1539,13 @@ function renderOrderHistory() {
   data.forEach(d => {
     const oNo = d['order_no'] || '-';
     if (!orders[oNo]) orders[oNo] = { orderNo: oNo, date: d['submit_date'], items: [] };
+    // 排除已完全出貨的品項
+    const _hDqty = parseFloat(d['delivered_qty'] || 0);
+    const _hQty = parseFloat(d['qty'] || 0);
+    if (_hQty > 0 && _hDqty >= _hQty) return;
     orders[oNo].items.push(d);
   });
+  Object.keys(orders).forEach(k => { if (orders[k].items.length === 0) delete orders[k]; });
   let html = '';
   Object.values(orders).forEach((order, oi) => {
     const pendingCount = order.items.filter(i => i['is_approved'] === 'pending').length;
@@ -2119,9 +2149,19 @@ async function loadAllOrders(month) {
   data.forEach(d => {
     const oNo = d['order_no'] || d['item_no'] || '-';
     if (!orders[oNo]) orders[oNo] = { orderNo: oNo, vessel: d['vessel_code'], applicant: d['applicant_zh'], date: d['submit_date'], items: [], images: d['images'] || '' };
+    // 排除已完全出貨的品項
+    const _aDqty = parseFloat(d['delivered_qty'] || 0);
+    const _aQty = parseFloat(d['qty'] || 0);
+    if (_aQty > 0 && _aDqty >= _aQty) return;
+    // 排除已完全出貨的品項
+    const _aDqty = parseFloat(d['delivered_qty'] || 0);
+    const _aQty = parseFloat(d['qty'] || 0);
+    if (_aQty > 0 && _aDqty >= _aQty) return;
     orders[oNo].items.push(d);
   });
+  Object.keys(orders).forEach(k => { if (orders[k].items.length === 0) delete orders[k]; });
 
+  Object.keys(orders).forEach(k => { if (orders[k].items.length === 0) delete orders[k]; });
   const actionBtns = settings.order_action || ['批准','拒絕'];
   let html = '';
   Object.values(orders).forEach((order, oi) => {
@@ -2143,7 +2183,7 @@ async function loadAllOrders(month) {
       (imgsHtml ? imgsHtml : '') +
       '<div style="margin-left:auto;display:flex;align-items:center;gap:6px">' +'<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModal(\'' + order.orderNo + '\',\'' + order.vessel + '\')"><i class="ti ti-file-invoice"></i> 簽收單</button>' +'<i class="ti ti-chevron-down" style="color:var(--text3);transition:transform 0.2s" id="ochev-' + oi + '" aria-hidden="true"></i>' +'</div></div>' +
       '<div id="og' + oi + '" style="display:block"><div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
-      '<th style="width:32px"><input type="checkbox" class="merge-check" title="全選/取消" onchange="toggleSelectAllItems(this,\'' + oi + '\')" id="chk-all-' + oi + '"></th><th>#</th><th>品名</th><th>料號</th><th>申請數</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>出貨數量</th><th>處理進度</th><th>操作</th>' +
+      '<th style="width:32px"><input type="checkbox" class="merge-check" title="全選/取消" onchange="toggleSelectAllItems(this,\'' + oi + '\')" id="chk-all-' + oi + '"></th><th>#</th><th>品名</th><th>料號</th><th>申請數</th><th>申請用途</th><th>期望到貨</th><th>批准狀態</th><th>目前狀態</th><th>處理進度</th><th>操作</th>' +
       '</tr></thead><tbody>';
 
     order.items.forEach((d, ii) => {
@@ -2198,7 +2238,6 @@ async function loadAllOrders(month) {
         '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
         '<td><span class="badge ' + badgeClass + '" id="ibadge-' + oi + '-' + ii + '">' + badgeText + '</span></td>' +
         '<td>' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:90px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
-        dqtyHtml +
         progHtml +
         '<td><div class="flex gap4" id="ibtn-' + oi + '-' + ii + '">' + btns +
         '<button class="btn btn-xs" onclick="openEditOrderItem(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',\'' + encodeURIComponent(JSON.stringify(d)) + '\')"><i class="ti ti-edit"></i>編輯</button>' +
@@ -3082,6 +3121,63 @@ function downloadPickListPDF() {
   </body></html>`);
   win.document.close();
 }
+
+// ============================================================
+// 紀錄出貨
+// ============================================================
+function openRecordDeliveryModal() {
+  if (mergeSelectedItems.length === 0) { alert('請先勾選要記錄出貨的品項'); return; }
+  const tbody = document.getElementById('record-delivery-tbody');
+  tbody.innerHTML = '';
+  mergeSelectedItems.forEach((item, i) => {
+    const tr = document.createElement('tr');
+    const initQty = item.qty || '';
+    tr.innerHTML =
+      '<td class="text-mono text-xs">' + item.orderNo + '</td>' +
+      '<td>' + item.itemName + '</td>' +
+      '<td class="text-xs" style="font-family:monospace">' + (item.partNo || '-') + '</td>' +
+      '<td style="text-align:center">' + item.qty + ' ' + item.unit + '</td>' +
+      '<td style="text-align:center"><input type="number" id="rdqty_' + i + '" value="' + initQty + '" min="0" placeholder="' + item.qty + '" style="width:60px;padding:3px 6px;font-size:12px;text-align:center;border:0.5px solid var(--warning);background:var(--bg3);border-radius:var(--radius);color:var(--text)"></td>' +
+      '<td><span class="badge badge-active" style="font-size:10px">' + item.vesselCode + '</span></td>';
+    tbody.appendChild(tr);
+  });
+  openModal('modal-record-delivery');
+}
+
+async function submitRecordDelivery() {
+  showLoading('寫入出貨記錄中...');
+  let failCount = 0;
+  for (let i = 0; i < mergeSelectedItems.length; i++) {
+    const item = mergeSelectedItems[i];
+    const dqty = document.getElementById('rdqty_' + i)?.value || item.qty;
+    const res = await api('updateDeliveredQty', {
+      vesselCode: item.vesselCode,
+      itemNo: item.itemNo,
+      deliveredQty: dqty
+    });
+    if (!res.success) failCount++;
+  }
+  hideLoading();
+
+  // 清除勾選
+  mergeSelectedItems = [];
+  document.querySelectorAll('.item-check').forEach(cb => {
+    cb.checked = false;
+    cb.closest('tr')?.classList.remove('merge-row-selected');
+  });
+  document.querySelectorAll('.merge-check[id^="chk-all-"]').forEach(cb => cb.checked = false);
+  ['record-delivery-btn','merge-receipt-btn','pick-list-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  closeModal('modal-record-delivery');
+  if (failCount > 0) alert('部分記錄失敗（' + failCount + ' 筆），請重新整理確認。');
+
+  // 重新載入（完全出貨的品項會自動消失）
+  _allOrdersData = null;
+  loadAllOrders();
+}
 // ============================================================
 // 合併出單
 // ============================================================
@@ -3111,6 +3207,11 @@ function onItemCheck(checkbox) {
 
   // 更新合併出單 & 撿貨單按鈕
   const count = mergeSelectedItems.length;
+  const rdBtn = document.getElementById('record-delivery-btn');
+  if (rdBtn) {
+    rdBtn.style.display = count > 0 ? 'inline-flex' : 'none';
+    rdBtn.innerHTML = '<i class="ti ti-package"></i> 紀錄出貨（' + count + '）';
+  }
   const btn = document.getElementById('merge-receipt-btn');
   if (btn) {
     btn.style.display = count > 0 ? 'inline-flex' : 'none';
@@ -3314,6 +3415,8 @@ async function submitAndPrintMerge() {
   mergeSelectedItems = [];
   document.querySelectorAll('.item-check').forEach(cb => { cb.checked = false; cb.closest('tr')?.classList.remove('merge-row-selected'); });
   document.querySelectorAll('.merge-check[id^="chk-all-"]').forEach(cb => { cb.checked = false; });
+  const rdBtnR = document.getElementById('record-delivery-btn');
+  if (rdBtnR) rdBtnR.style.display = 'none';
   const btn = document.getElementById('merge-receipt-btn');
   if (btn) btn.style.display = 'none';
   const pickBtnR = document.getElementById('pick-list-btn');
