@@ -1561,7 +1561,7 @@ function renderOrderHistory() {
     // 排除已完全出貨的品項
     const _hDqty = parseFloat(d['delivered_qty'] || 0);
     const _hQty = parseFloat(d['qty'] || 0);
-    if (_hQty > 0 && _hDqty >= _hQty) return;
+    if (_hDqty > 0 && (_hQty === 0 || _hDqty >= _hQty)) return;
     orders[oNo].items.push(d);
   });
   Object.keys(orders).forEach(k => { if (orders[k].items.length === 0) delete orders[k]; });
@@ -2171,7 +2171,8 @@ async function loadAllOrders(month) {
     // 排除已完全出貨的品項
     const _aDqty = parseFloat(d['delivered_qty'] || 0);
     const _aQty = parseFloat(d['qty'] || 0);
-    if (_aQty > 0 && _aDqty >= _aQty) return;
+    // qty 為空時，只要有出貨記錄就視為已出貨
+    if (_aDqty > 0 && (_aQty === 0 || _aDqty >= _aQty)) return;
     orders[oNo].items.push(d);
   });
   Object.keys(orders).forEach(k => { if (orders[k].items.length === 0) delete orders[k]; });
