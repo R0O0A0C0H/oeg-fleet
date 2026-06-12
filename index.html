@@ -3141,7 +3141,7 @@ function renderDeliveryLog() {
         '<button class="btn btn-xs" onclick="openEditDeliveredQty(\'' + d['vessel_code'] + '\',\'' + (d['item_no']||'') + '\',\'' + dqty + '\')"><i class="ti ti-edit"></i>修改</button>' +
         '<button class="btn btn-xs" style="font-size:10px" onclick="openSignedUpload(\'item\',\'' + (d['item_no']||'') + '\',\'' + (d['vessel_code']||'') + '\',\'sdl-item-' + ii + '-' + oi + '\')"><i class="ti ti-upload"></i>簽收照</button>' +
         '<div id="sdl-item-' + ii + '-' + oi + '" style="display:inline-flex;flex-wrap:wrap;gap:4px;margin-top:2px">' +
-        (() => { const imgs = (d['signed_images_item']||'').split(',').filter(Boolean); return imgs.map(u => \'<img src="\' + u + \'" style="width:28px;height:28px;object-fit:cover;border-radius:3px;cursor:pointer;border:0.5px solid var(--border2)" onclick="openLightboxUrl(\\\' + u + \'\\\')">\'  ).join(\'\'); })() +
+        renderSignedThumbs(d['signed_images_item']) +
         '</div>' +
         '</div></td>' +
         '</tr>';
@@ -3461,6 +3461,13 @@ async function submitSignedUpload() {
   } else {
     document.getElementById('signed-upload-err').textContent = res.message || '儲存失敗';
   }
+}
+
+function renderSignedThumbs(urlsStr) {
+  if (!urlsStr) return '';
+  return (urlsStr || '').split(',').filter(Boolean).map(function(u) {
+    return '<img src="' + u + '" style="width:28px;height:28px;object-fit:cover;border-radius:3px;cursor:pointer;border:0.5px solid var(--success)" onclick="openLightboxUrl(\'' + u + '\')">';
+  }).join('');
 }
 // ============================================================
 // 取消出貨
