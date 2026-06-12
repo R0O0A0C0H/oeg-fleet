@@ -909,6 +909,35 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
   </div>
 </div>
 
+
+<!-- 上傳簽收圖片 Modal -->
+<div class="modal-overlay" id="modal-signed-upload" style="z-index:400">
+  <div class="modal" style="width:460px;max-width:96vw">
+    <div class="modal-title"><i class="ti ti-upload"></i> <span id="signed-upload-title">上傳簽收圖片</span></div>
+    <div class="notice notice-info" style="margin-bottom:12px">
+      <i class="ti ti-info-circle"></i>
+      <span>最多上傳 3 張圖片（簽收單掃描或拍照）</span>
+    </div>
+    <div class="img-preview-grid" id="signed-preview-grid"></div>
+    <div class="img-upload-progress" id="signed-upload-progress">上傳中...</div>
+    <div class="img-upload-zone" id="signed-upload-zone"
+      onclick="document.getElementById('signed-file-input').click()"
+      ondragover="imgDragOver(event,'signed-upload-zone')"
+      ondragleave="imgDragLeave('signed-upload-zone')"
+      ondrop="event.preventDefault();handleSignedFiles(event.dataTransfer.files)">
+      <i class="ti ti-cloud-upload"></i>
+      <p>點擊或拖曳上傳圖片</p>
+      <p class="text-xs">支援 JPG / PNG / HEIC · 最多 3 張</p>
+    </div>
+    <input type="file" id="signed-file-input" accept="image/*" multiple style="display:none"
+      onchange="handleSignedFiles(this.files)">
+    <div class="err-msg" id="signed-upload-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-signed-upload')">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="submitSignedUpload()"><i class="ti ti-upload"></i> 上傳</button>
+    </div>
+  </div>
+</div>
 <!-- 修改出貨數量 Modal -->
 <div class="modal-overlay" id="modal-edit-dqty">
   <div class="modal" style="width:360px">
@@ -3067,6 +3096,9 @@ function renderDeliveryLog() {
       '<div style="margin-left:auto;display:flex;gap:6px;align-items:center">' +
       '<button class="btn btn-xs btn-danger" id="cancel-delivery-btn-' + oi + '" style="display:none;font-size:10px" onclick="event.stopPropagation();cancelSelectedDelivery(' + oi + ')">' +
       '<i class="ti ti-package-off"></i> 取消出貨</button>' +
+      '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();openSignedUpload(\'order\',\'' + order.orderNo + '\',\'' + order.vessel + '\',\'sdl-order-' + oi + '\')">' +
+      '<i class="ti ti-upload"></i> 上傳簽收單</button>' +
+      '<div id="sdl-order-' + oi + '" style="display:none"></div>' +
       '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptFromDeliveryLog(\'' + order.orderNo + '\',\'' + order.vessel + '\')">' +
       '<i class="ti ti-file-invoice"></i> 簽收單</button>' +
       '</div>' +
@@ -3104,7 +3136,14 @@ function renderDeliveryLog() {
         '<td style="text-align:center;color:' + (remaining > 0 ? 'var(--danger)' : 'var(--success)') + ';font-weight:500">' +
           (remaining > 0 ? remaining + ' ' + unit : '—') + '</td>' +
         '<td>' + statusHtml + '</td>' +
-        '<td><button class="btn btn-xs" onclick="openEditDeliveredQty(\'' + d['vessel_code'] + '\',\'' + (d['item_no']||'') + '\',\'' + dqty + '\')"><i class="ti ti-edit"></i>修改</button></td>' +
+        '<td>' +
+        '<div style="display:flex;flex-direction:column;gap:3px">' +
+        '<button class="btn btn-xs" onclick="openEditDeliveredQty(\'' + d['vessel_code'] + '\',\'' + (d['item_no']||'') + '\',\'' + dqty + '\')"><i class="ti ti-edit"></i>修改</button>' +
+        '<button class="btn btn-xs" style="font-size:10px" onclick="openSignedUpload(\'item\',\'' + (d['item_no']||'') + '\',\'' + (d['vessel_code']||'') + '\',\'sdl-item-' + ii + '-' + oi + '\')"><i class="ti ti-upload"></i>簽收照</button>' +
+        '<div id="sdl-item-' + ii + '-' + oi + '" style="display:inline-flex;flex-wrap:wrap;gap:4px;margin-top:2px">' +
+        (() => { const imgs = (d['signed_images_item']||'').split(',').filter(Boolean); return imgs.map(u => \'<img src="\' + u + \'" style="width:28px;height:28px;object-fit:cover;border-radius:3px;cursor:pointer;border:0.5px solid var(--border2)" onclick="openLightboxUrl(\\\' + u + \'\\\')">\'  ).join(\'\'); })() +
+        '</div>' +
+        '</div></td>' +
         '</tr>';
     });
     html += '</tbody></table></div>';
@@ -3338,6 +3377,91 @@ function downloadPickListPDF() {
 }
 
 
+
+// ============================================================
+// 簽收圖片上傳
+// ============================================================
+let _signedUploadType = ''; // 'order' | 'item'
+let _signedUploadId = '';   // orderNo 或 itemNo
+let _signedUploadVessel = '';
+let _signedUploadPreviewId = '';
+let _signedFiles = [];
+
+function openSignedUpload(type, id, vesselCode, previewId) {
+  _signedUploadType = type;
+  _signedUploadId = id;
+  _signedUploadVessel = vesselCode;
+  _signedUploadPreviewId = previewId;
+  _signedFiles = [];
+  document.getElementById('signed-upload-title').textContent =
+    type === 'order' ? '上傳簽收單（訂單 ' + id + '）' : '上傳簽收照片（品項 ' + id + '）';
+  document.getElementById('signed-preview-grid').innerHTML = '';
+  document.getElementById('signed-upload-err').textContent = '';
+  openModal('modal-signed-upload');
+}
+
+function handleSignedFiles(files) {
+  const MAX = 3;
+  for (const f of files) {
+    if (!f.type.startsWith('image/')) continue;
+    if (_signedFiles.length >= MAX) { alert('最多 ' + MAX + ' 張'); break; }
+    _signedFiles.push({ file: f, localUrl: URL.createObjectURL(f), cloudUrl: null });
+  }
+  renderSignedPreviews();
+}
+
+function renderSignedPreviews() {
+  const grid = document.getElementById('signed-preview-grid');
+  grid.innerHTML = '';
+  _signedFiles.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'img-thumb';
+    div.innerHTML = '<img src="' + item.localUrl + '" onclick="openLightboxUrl(\'' + item.localUrl + '\')">' +
+      '<div class="img-thumb-del" onclick="removeSignedFile(' + i + ')">&#215;</div>';
+    grid.appendChild(div);
+  });
+}
+
+function removeSignedFile(i) {
+  URL.revokeObjectURL(_signedFiles[i].localUrl);
+  _signedFiles.splice(i, 1);
+  renderSignedPreviews();
+}
+
+async function submitSignedUpload() {
+  if (_signedFiles.length === 0) { document.getElementById('signed-upload-err').textContent = '請選擇圖片'; return; }
+  showLoading('上傳簽收圖片中...');
+  try {
+    await uploadAllImages(_signedFiles, 'signed-upload-progress');
+  } catch(e) {
+    hideLoading();
+    document.getElementById('signed-upload-err').textContent = '上傳失敗：' + e.message;
+    return;
+  }
+  const urls = _signedFiles.map(f => f.cloudUrl);
+  const res = await api('updateSignedImages', {
+    vesselCode: _signedUploadVessel,
+    itemNo: _signedUploadId,
+    type: _signedUploadType,
+    images: urls
+  });
+  hideLoading();
+  if (res.success) {
+    // 在預覽區顯示縮圖
+    const previewEl = document.getElementById(_signedUploadPreviewId);
+    if (previewEl) {
+      previewEl.style.display = 'inline-flex';
+      previewEl.innerHTML = urls.map(u =>
+        '<img src="' + u + '" style="width:28px;height:28px;object-fit:cover;border-radius:3px;cursor:pointer;border:0.5px solid var(--success)" onclick="openLightboxUrl(\'' + u + '\')">'
+      ).join('');
+    }
+    closeModal('modal-signed-upload');
+    _signedFiles.forEach(f => URL.revokeObjectURL(f.localUrl));
+    _signedFiles = [];
+  } else {
+    document.getElementById('signed-upload-err').textContent = res.message || '儲存失敗';
+  }
+}
 // ============================================================
 // 取消出貨
 // ============================================================
