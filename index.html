@@ -3191,13 +3191,14 @@ function renderCrewDeliveryLog() {
       '<span style="font-family:var(--font-mono);font-size:13px;font-weight:500">' + order.orderNo + '</span>' +
       '<span style="font-size:12px;color:var(--text2)">' + dateStr + ' · ' + order.items.length + ' 項已出貨</span>' +
       '<div style="margin-left:auto;display:flex;align-items:center;gap:6px">' +
-      '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();printReceiptModalCrew(\'' + order.orderNo + '\')">' +
-      '<i class="ti ti-file-invoice"></i> 簽收單</button>' +
+      '<button class="btn btn-xs" style="font-size:10px" onclick="event.stopPropagation();openSignedUpload(\'order\',\'' + order.orderNo + '\',\'' + currentUser.vesselCode + '\',\'crew-sdl-order-' + oi + '\')">' +
+      '<i class="ti ti-upload"></i> 上傳簽收單</button>' +
+      '<div id="crew-sdl-order-' + oi + '" style="display:none"></div>' +
       '<i class="ti ti-chevron-down" style="color:var(--text3);transition:transform 0.2s" id="cdlchev' + oi + '"></i>' +
       '</div>' +
       '</div>' +
       '<div id="cdl' + oi + '"><table class="data-table"><thead><tr>' +
-      '<th>#</th><th>品名</th><th>數量</th><th style="text-align:center;color:var(--warning)">出貨數</th><th style="text-align:center">剩餘</th><th>狀態</th>' +
+      '<th>#</th><th>品名</th><th>數量</th><th style="text-align:center;color:var(--warning)">出貨數</th><th style="text-align:center">剩餘</th><th>狀態</th><th style="width:70px">操作</th>' +
       '</tr></thead><tbody>';
 
     order.items.forEach((d, ii) => {
@@ -3216,6 +3217,12 @@ function renderCrewDeliveryLog() {
         '<td style="text-align:center;color:' + (remaining > 0 ? 'var(--danger)' : 'var(--success)') + ';font-weight:500">' +
           (remaining > 0 ? remaining + ' ' + unit : '—') + '</td>' +
         '<td>' + statusHtml + '</td>' +
+        '<td><div style="display:flex;flex-direction:column;gap:3px">' +
+        '<button class="btn btn-xs" style="font-size:10px" onclick="openSignedUpload(\'item\',\'' + (d['item_no']||'') + '\',\'' + (currentUser.vesselCode||'') + '\',\'crew-sdl-item-' + ii + '-' + oi + '\')">' +
+        '<i class="ti ti-upload"></i>簽收照</button>' +
+        '<div id="crew-sdl-item-' + ii + '-' + oi + '" style="display:inline-flex;flex-wrap:wrap;gap:4px;margin-top:2px">' +
+        renderSignedThumbs(d['signed_images_item']) +
+        '</div></div></td>' +
         '</tr>';
     });
     html += '</tbody></table></div></div>';
