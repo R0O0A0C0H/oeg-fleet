@@ -1638,8 +1638,9 @@ function renderOrderHistory() {
       const approved = d['is_approved'] || 'pending';
       const badgeClass = approved === 'approved' ? 'badge-approved' : approved === 'rejected' ? 'badge-rejected' : 'badge-pending';
       const badgeText = approved === 'approved' ? '批准' : approved === 'rejected' ? '拒絕' : '待審';
-      const status = d['status'] || '-';
-      const statusClass = status === '已到貨' ? 'badge-approved' : status === '已拒絕' ? 'badge-rejected' : status === '待處理' ? 'badge-pending' : 'badge-info';
+      const _autoSt = autoOrderStatus(d);
+      const status = _autoSt.text;
+      const statusClass = _autoSt.cls;
       const progress = d['progress'] || '';
       const _cDqty = parseFloat(d['delivered_qty'] || 0);
       const _cQty = parseFloat(d['qty'] || 0);
@@ -2330,7 +2331,7 @@ async function loadAllOrders(month) {
         '<td style="font-size:11px;word-break:break-all">' + (d['remark'] || '-') + '</td>' +
         '<td style="font-size:11px">' + (d['expected_date'] ? String(d['expected_date']).slice(0,10) : '-') + '</td>' +
         '<td id="ibadge-' + oi + '-' + ii + '"><span class="badge ' + badgeClass + '">' + badgeText + '</span></td>' +
-        '<td id="istatus-' + oi + '-' + ii + '">' + (approved !== 'rejected' ? '<select style="font-size:11px;padding:3px 6px;width:88px" onchange="updateOrderStatus(\'' + d['vessel_code'] + '\',\'' + itemNo + '\',this.value)">' + statusOpts + '</select>' : '—') + '</td>' +
+        (() => { const _as = autoOrderStatus(d); return '<td id="istatus-' + oi + '-' + ii + '"><span class="badge ' + _as.cls + '">' + _as.text + '</span></td>'; })() +
         '<td style="text-align:center;font-weight:600;font-size:12px">' + (() => {
           const _dq = parseFloat(d['delivered_qty'] || 0);
           const _q = parseFloat(d['qty'] || 0);
@@ -2379,7 +2380,7 @@ function orderItemAction(vesselCode, itemNo, action, orderIdx, ii) {
     const badgeCell = document.getElementById('ibadge-' + orderIdx + '-' + ii);
     if (badgeCell) badgeCell.innerHTML = '<span class="badge badge-approved">批准</span>';
     const statusCell = document.getElementById('istatus-' + orderIdx + '-' + ii);
-    if (statusCell) statusCell.innerHTML = '<select style="font-size:11px;padding:3px 6px;width:88px"><option selected>備料中</option></select>';
+    if (statusCell) statusCell.innerHTML = '<span class="badge badge-info">備料中</span>';
     const btnCell = document.getElementById('ibtn-' + orderIdx + '-' + ii)?.closest('td');
     if (btnCell) btnCell.innerHTML = '<div style="display:flex;flex-direction:column;gap:3px">' +
       '<div style="display:flex;gap:3px">' +
@@ -2408,7 +2409,7 @@ function submitRejectOrder() {
     const badgeCellR = document.getElementById('ibadge-' + orderIdx + '-' + ii);
     if (badgeCellR) badgeCellR.innerHTML = '<span class="badge badge-rejected">拒絕</span>';
     const statusCellR = document.getElementById('istatus-' + orderIdx + '-' + ii);
-    if (statusCellR) statusCellR.innerHTML = '—';
+    if (statusCellR) statusCellR.innerHTML = '<span class="badge badge-rejected">已拒絕</span>';
     const btnCellR = document.getElementById('ibtn-' + orderIdx + '-' + ii)?.closest('td');
     if (btnCellR) btnCellR.innerHTML = '<div style="display:flex;flex-direction:column;gap:3px">' +
       '<div style="display:flex;gap:3px">' +
@@ -3470,6 +3471,18 @@ async function submitSignedUpload() {
   }
 }
 
+
+// 自動判斷目前狀態
+function autoOrderStatus(d) {
+  const approved = d['is_approved'] || 'pending';
+  if (approved === 'rejected') return { text: '已拒絕', cls: 'badge-rejected' };
+  if (approved === 'pending')  return { text: '未批准', cls: 'badge-pending' };
+  const dqty = parseFloat(d['delivered_qty'] || 0);
+  const qty  = parseFloat(d['qty'] || 0);
+  if (dqty <= 0)              return { text: '備料中',    cls: 'badge-info' };
+  if (qty > 0 && dqty >= qty) return { text: '已出貨',   cls: 'badge-approved' };
+  return { text: '已部分出貨', cls: 'badge-pending' };
+}
 function renderSignedThumbs(urlsStr) {
   if (!urlsStr) return '';
   return (urlsStr || '').split(',').filter(Boolean).map(function(u) {
