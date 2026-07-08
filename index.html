@@ -1284,11 +1284,25 @@ function renderAdminImgCell(urlsStr, maxShow) {
 // ============================================================
 // API
 // ============================================================
-async function api(action, params = {}) {
+async function api(action, params = {}, retries = 1) {
   try {
-    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: action, ...params }) });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30秒 timeout
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, ...params }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
     return await res.json();
-  } catch(e) { return { success: false, message: 'Network error: ' + e.message, offline: true }; }
+  } catch(e) {
+    if (retries > 0 && e.name !== 'AbortError') {
+      await new Promise(r => setTimeout(r, 1000)); // 等1秒後重試
+      return api(action, params, retries - 1);
+    }
+    return { success: false, message: e.name === 'AbortError' ? '請求逾時，請重試' : 'Network error: ' + e.message, offline: true };
+  }
 }
 
 let _loadingTimerInterval = null;
@@ -1779,9 +1793,40 @@ function renderRepairHistory() {
   el.innerHTML = html;
 }
 
-async function loadSettings() {
+async function loadSettings(forceRefresh) {
+  // 先從 localStorage 快速載入（減少 GAS 冷啟動等待）
+  if (!forceRefresh) {
+    const cached = localStorage.getItem('oeg_settings_cache');
+    const cachedTime = localStorage.getItem('oeg_settings_cache_time');
+    if (cached && cachedTime && (Date.now() - parseInt(cachedTime)) < 5 * 60 * 1000) {
+      // 5分鐘內的快取直接使用
+      settings = JSON.parse(cached);
+      renderSettingTags();
+      updateStatusFilters();
+      applyLogoFromSettings();
+      // 背景靜默更新
+      api('getSettings', {}).then(res => {
+        if (res.success) {
+          settings = res.data;
+          localStorage.setItem('oeg_settings_cache', JSON.stringify(res.data));
+          localStorage.setItem('oeg_settings_cache_time', Date.now().toString());
+          renderSettingTags();
+          updateStatusFilters();
+          applyLogoFromSettings();
+        }
+      });
+      return { success: true, data: settings };
+    }
+  }
   const res = await api('getSettings', {});
-  if (res.success) { settings = res.data; renderSettingTags(); updateStatusFilters(); applyLogoFromSettings(); }
+  if (res.success) {
+    settings = res.data;
+    localStorage.setItem('oeg_settings_cache', JSON.stringify(res.data));
+    localStorage.setItem('oeg_settings_cache_time', Date.now().toString());
+    renderSettingTags();
+    updateStatusFilters();
+    applyLogoFromSettings();
+  }
   return res;
 }
 
@@ -1851,9 +1896,11 @@ async function doAdminLogin() {
   document.getElementById('admin-username').textContent = accountId + '／' + currentAdminRank;
   setPageTitle('Admin');
   showScreen('admin');
-  loadSettings().then(() => { loadAdminAccounts(); applyAdminPermissions(); });
-  loadPendingAccounts();
-  loadAdminPending();
+  // 並行載入，減少等待時間
+  Promise.all([loadSettings(), loadPendingAccounts(), loadAdminPending()]).then(([settingsRes]) => {
+    loadAdminAccounts();
+    applyAdminPermissions();
+  });
 }
 
 
