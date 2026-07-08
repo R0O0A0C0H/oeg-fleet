@@ -2334,7 +2334,6 @@ async function loadAllOrders(month) {
       }).join('');
     }
   });
-  document.getElementById('stat-order-delivered').textContent = (_allOrdersData||[]).filter(d => d['status'] === '已到貨').length;
 
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">此月份沒有訂購單</div>'; return; }
 
