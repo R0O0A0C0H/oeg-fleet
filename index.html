@@ -2288,10 +2288,10 @@ async function loadAllOrders(month) {
   if (submitBtn) submitBtn.style.display = 'none';
   const el = document.getElementById('orders-content');
   if (!_allOrdersData) {
-    el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
+    el.innerHTML = '<div style="padding:20px;text-align:center"><div class="spinner" style="margin:0 auto 12px"></div><div class="text-dim text-sm">載入訂購單資料中...</div><div class="text-dimmer" style="font-size:11px;margin-top:4px">首次載入需要數秒，請稍候</div></div>';
     const res = await api('getAllOrders', {});
-    if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
-    _allOrdersData = res.data.map(r => r.data || r);
+    if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗，請重新整理</div>'; return; }
+    _allOrdersData = (res.data || []).map(r => r.data || r);
   }
   const filterVessel = document.getElementById('filter-order-vessel')?.value;
   const filterStatus = document.getElementById('filter-order-status')?.value;
