@@ -1859,6 +1859,8 @@ async function addSettingTag(key, inputId) {
   renderSettingTags();
   updateStatusFilters();
   await saveSettings();
+  // 如果是 order_action，重整訂單列表讓按鈕立即出現
+  if (key === 'order_action') { _allOrdersData = null; loadAllOrders(); }
 }
 
 async function removeSettingTag(key, idx) {
@@ -1868,7 +1870,12 @@ async function removeSettingTag(key, idx) {
   await saveSettings();
 }
 
-async function saveSettings() { await api('saveSettings', { settings }); }
+async function saveSettings() {
+  await api('saveSettings', { settings });
+  // 同步更新 localStorage 快取
+  localStorage.setItem('oeg_settings_cache', JSON.stringify(settings));
+  localStorage.setItem('oeg_settings_cache_time', Date.now().toString());
+}
 
 function updateStatusFilters() {
   const orderFilter = document.getElementById('filter-order-status');
@@ -4405,6 +4412,14 @@ window.addEventListener('online', () => { document.getElementById('offline-banne
 window.addEventListener('offline', () => { document.getElementById('offline-banner')?.classList.add('show'); });
 
 initLogo();
+// 清除過期設定快取
+(function() {
+  const t = localStorage.getItem('oeg_settings_cache_time');
+  if (!t || (Date.now() - parseInt(t)) > 5 * 60 * 1000) {
+    localStorage.removeItem('oeg_settings_cache');
+    localStorage.removeItem('oeg_settings_cache_time');
+  }
+})();
 // 初始化維護狀態（從 localStorage 讀，登入時再從 GAS 同步）
 _maintenanceOn = localStorage.getItem('oeg_maintenance') === 'on';
 if (location.search.includes('admin')) { showScreen('admin-login'); }
