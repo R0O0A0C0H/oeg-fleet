@@ -351,6 +351,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="form-group"><label class="form-label">私人信箱 <span class="req">*</span></label><input type="email" id="reg-email" placeholder="用於找回密碼"></div>
         <div class="form-group"><label class="form-label">密碼 <span class="req">*</span></label><input type="password" id="reg-pass" placeholder="至少 6 位"></div>
         <div class="form-group"><label class="form-label">確認密碼 <span class="req">*</span></label><input type="password" id="reg-pass2" placeholder="再次輸入"></div>
+        <div class="form-group"><label class="form-label">職稱 Rank</label><select id="reg-rank"><option value="">請選擇（選填）</option><option>船長</option><option>船副</option><option>輪機長</option><option>資深機匠</option></select></div>
         <button class="login-btn" onclick="doRegister()">送出申請 Submit</button>
         <div class="err-msg" id="reg-err"></div>
       </div>
@@ -1388,7 +1389,8 @@ async function doLogin() {
 function enterCrewApp() {
   const v = VESSELS[currentUser.vesselCode];
   document.getElementById('crew-vessel-chip').textContent = currentUser.vesselCode + ' — ' + v.en + ' ' + v.zh;
-  document.getElementById('crew-username').textContent = currentUser.nameZh + ' ' + currentUser.nameEn;
+  const _rankDisp = currentUser.rank ? '／' + currentUser.rank : '';
+  document.getElementById('crew-username').textContent = currentUser.nameZh + ' ' + currentUser.nameEn + _rankDisp;
   setPageTitle(currentUser.vesselCode + ' - Vessel');
   showScreen('crew');
   buildOrderTable();
@@ -1410,8 +1412,9 @@ async function doRegister() {
   if (pass.length < 6) { errEl.textContent = '密碼至少需要 6 位'; return; }
   if (pass !== pass2) { errEl.textContent = '兩次密碼不一致'; return; }
   if (!/^[a-zA-Z0-9]+$/.test(accountId)) { errEl.textContent = '帳號僅限英文與數字'; return; }
+  const rank = document.getElementById('reg-rank')?.value || '';
   showLoading('送出申請中...');
-  const res = await api('register', { accountId, password: pass, nameZh: zhName, nameEn: enName, email });
+  const res = await api('register', { accountId, password: pass, nameZh: zhName, nameEn: enName, email, rank });
   hideLoading();
   if (!res.success) { errEl.textContent = res.message; return; }
   document.getElementById('reg-fields').style.display = 'none';
@@ -1844,7 +1847,8 @@ async function doAdminLogin() {
   currentAdmin = { accountId };
   currentAdminPermissions = res.permissions || [];
   currentAdminIsRoot = res.isRoot || (accountId === 'roach1104');
-  document.getElementById('admin-username').textContent = accountId;
+  currentAdminRank = res.rank || (currentAdminIsRoot ? '總管理員' : '一般管理員');
+  document.getElementById('admin-username').textContent = accountId + '／' + currentAdminRank;
   setPageTitle('Admin');
   showScreen('admin');
   loadSettings().then(() => { loadAdminAccounts(); applyAdminPermissions(); });
@@ -1865,6 +1869,7 @@ const ALL_PERMS = [
 
 let currentAdminPermissions = []; // 登入後的權限
 let currentAdminIsRoot = false;
+let currentAdminRank = ''; // 管理員職級
 
 function switchAdminLoginTab(tab) {
   document.getElementById('adm-login-form').style.display = tab === 'login' ? 'block' : 'none';
@@ -1907,7 +1912,9 @@ function loadAdminAccounts() {
 
   // roach1104（主帳號，永遠有全部權限）
   const rootTr = document.createElement('tr');
+  const _rootRankOpts = ['總管理員','高階管理員','一般管理員'].map(r => '<option' + (r==='總管理員'?' selected':'') + '>' + r + '</option>').join('');
   rootTr.innerHTML = '<td class="text-mono">roach1104 <span class="text-dimmer text-xs">(主帳號)</span></td>' +
+    '<td><select style="font-size:11px;padding:3px 6px" onchange="updateAdminRank(\'roach1104\',this.value)"><option value="">─</option>' + _rootRankOpts + '</select></td>' +
     '<td><span class="badge badge-active">主管理員</span></td>' +
     '<td><span class="text-dim text-sm">全部權限</span></td>' +
     '<td><button class="btn btn-xs" onclick="openModal(\'modal-change-admin-pw\')"><i class="ti ti-lock"></i>修改密碼</button></td>';
@@ -1921,7 +1928,11 @@ function loadAdminAccounts() {
       '<span class="perm-chip ' + (perms.includes(p.key) ? 'active' : '') + '" ' +
       'onclick="toggleAdminPerm(\'' + accountId + '\',\'' + p.key + '\',this)">' + p.label + '</span>'
     ).join('');
+    const _adminRankMap = settings.admin_rank || {};
+    const _curAdminRank = _adminRankMap[accountId] || '';
+    const _adminRankOpts = ['總管理員','高階管理員','一般管理員'].map(r => '<option' + (_curAdminRank===r?' selected':'') + '>' + r + '</option>').join('');
     tr.innerHTML = '<td class="text-mono">' + accountId + '</td>' +
+      '<td><select style="font-size:11px;padding:3px 6px" onchange="updateAdminRank(\'' + accountId + '\',this.value)"><option value="">─</option>' + _adminRankOpts + '</select></td>' +
       '<td><span class="badge badge-info">管理員</span></td>' +
       '<td><div class="perm-chip-row" id="perm-row-' + accountId + '">' + permChips + '</div></td>' +
       '<td><button class="btn btn-xs btn-danger" onclick="removeAdmin(\'' + accountId + '\')"><i class="ti ti-trash"></i>移除</button></td>';
@@ -2055,6 +2066,7 @@ function doAdminLogout() {
   currentAdmin = null;
   currentAdminPermissions = [];
   currentAdminIsRoot = false;
+  currentAdminRank = '';
   setPageTitle(null);
   document.getElementById('adm-user').value = '';
   document.getElementById('adm-pass').value = '';
@@ -2135,11 +2147,13 @@ async function loadCrewAccounts() {
   if (filterVessel) data = data.filter(a => a.vesselCode === filterVessel);
   if (filterStatus) data = data.filter(a => a.status === filterStatus);
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">沒有符合的帳號</div>'; return; }
-  let html = '<table class="data-table"><thead><tr><th>帳號</th><th>中文姓名</th><th>英文姓名</th><th>所屬船隻</th><th>狀態</th><th>操作</th></tr></thead><tbody>';
+  let html = '<table class="data-table"><thead><tr><th>帳號</th><th>中文姓名</th><th>英文姓名</th><th>職稱</th><th>所屬船隻</th><th>狀態</th><th>操作</th></tr></thead><tbody>';
   data.forEach(a => {
     const statusBadge = a.status === 'active' ? '<span class="badge badge-active">啟用</span>' : a.status === 'leave' ? '<span class="badge badge-leave">留職停薪</span>' : '<span class="badge badge-rejected">停用</span>';
     const toggleBtn = a.status === 'leave' ? '<button class="btn btn-xs btn-success" onclick="toggleLeave(\'' + a.accountId + '\',\'active\')"><i class="ti ti-play"></i>恢復啟用</button>' : '<button class="btn btn-xs" onclick="toggleLeave(\'' + a.accountId + '\',\'leave\')"><i class="ti ti-pause"></i>留職停薪</button>';
+    const _rankOpts = ['船長','船副','輪機長','資深機匠'].map(r => '<option' + (a.rank===r?' selected':'') + '>' + r + '</option>').join('');
     html += '<tr><td class="text-mono">' + a.accountId + '</td><td>' + a.nameZh + '</td><td>' + a.nameEn + '</td>' +
+      '<td><select style="font-size:11px;padding:3px 6px" onchange="updateCrewRank(\'' + a.accountId + '\',this.value)"><option value="">─</option>' + _rankOpts + '</select></td>' +
       (() => {
       const vessels = (a.vesselCode || '').split(',').map(v => v.trim()).filter(Boolean);
       const chips = ['VLK','WTN','VLN','WYF'].map(c =>
@@ -2181,6 +2195,19 @@ function toggleVessel(accountId, vesselCode, chipEl) {
 
 function togglePendingVessel(accountId, vesselCode, chipEl) {
   chipEl.classList.toggle('selected');
+}
+
+// ── 職稱更新 ──────────────────────────────────────────────────
+async function updateCrewRank(accountId, rank) {
+  const res = await api('updateAccount', { accountId, rank });
+  if (!res.success) alert('更新失敗：' + res.message);
+}
+
+async function updateAdminRank(accountId, rank) {
+  // 存到 settings.admin_rank
+  if (!settings.admin_rank) settings.admin_rank = {};
+  settings.admin_rank[accountId] = rank;
+  await api('saveSettings', { settings });
 }
 async function toggleLeave(accountId, status) {
   showLoading('更新中...');
