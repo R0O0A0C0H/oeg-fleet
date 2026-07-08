@@ -654,10 +654,10 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 
         <div class="page" id="admin-page-orders">
           <div class="stat-grid">
-            <div class="stat-card"><div class="stat-label">待審核</div><div class="stat-value" id="stat-order-pending">-</div></div>
-            <div class="stat-card"><div class="stat-label">已批准</div><div class="stat-value" id="stat-order-approved">-</div></div>
-            <div class="stat-card"><div class="stat-label">備料中</div><div class="stat-value" id="stat-order-preparing">-</div></div>
-            <div class="stat-card"><div class="stat-label">已到貨</div><div class="stat-value" id="stat-order-delivered">-</div></div>
+            <div class="stat-card"><div class="stat-label">VLK 威可利<br><span style="font-size:10px;color:var(--text3)">未結案訂單</span></div><div class="stat-value" id="stat-vlk">-</div></div>
+            <div class="stat-card"><div class="stat-label">WTN 威騰<br><span style="font-size:10px;color:var(--text3)">未結案訂單</span></div><div class="stat-value" id="stat-wtn">-</div></div>
+            <div class="stat-card"><div class="stat-label">VLN 英勇<br><span style="font-size:10px;color:var(--text3)">未結案訂單</span></div><div class="stat-value" id="stat-vln">-</div></div>
+            <div class="stat-card"><div class="stat-label">WYF 威風<br><span style="font-size:10px;color:var(--text3)">未結案訂單</span></div><div class="stat-value" id="stat-wyf">-</div></div>
           </div>
           <div class="settings-panel" id="order-settings-panel">
             <div class="bold text-sm flex gap8"><i class="ti ti-settings"></i>狀態與操作按鈕設定</div>
@@ -2301,9 +2301,22 @@ async function loadAllOrders(month) {
   _allOrdersMonth = buildMonthTabs(data, 'submit_date', 'admin-order-tabs', month || _allOrdersMonth, 'switchOrderMonth');
   data = data.filter(d => { const m = d['submit_date'] ? String(d['submit_date']).slice(0, 7) : ''; return m === _allOrdersMonth; });
 
-  document.getElementById('stat-order-pending').textContent = (_allOrdersData||[]).filter(d => d['is_approved'] === 'pending').length;
-  document.getElementById('stat-order-approved').textContent = (_allOrdersData||[]).filter(d => d['is_approved'] === 'approved').length;
-  document.getElementById('stat-order-preparing').textContent = (_allOrdersData||[]).filter(d => d['status'] === '備料中').length;
+  const _allD = _allOrdersData || [];
+  // 各船未結案訂單數（有品項尚未完全出貨的訂單，不重複計算同一訂單）
+  ['VLK','WTN','VLN','WYF'].forEach(v => {
+    const vesselItems = _allD.filter(d => d['vessel_code'] === v);
+    const openOrders = new Set();
+    vesselItems.forEach(d => {
+      const dqty = parseFloat(d['delivered_qty'] || 0);
+      const qty  = parseFloat(d['qty'] || 0);
+      // 未完全出貨 = 未結案
+      if (!(qty > 0 && dqty >= qty) && !(qty === 0 && dqty > 0)) {
+        openOrders.add(d['order_no']);
+      }
+    });
+    const el = document.getElementById('stat-' + v.toLowerCase());
+    if (el) el.textContent = openOrders.size;
+  });
   document.getElementById('stat-order-delivered').textContent = (_allOrdersData||[]).filter(d => d['status'] === '已到貨').length;
 
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">此月份沒有訂購單</div>'; return; }
