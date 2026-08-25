@@ -1095,6 +1095,32 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
     </div>
   </div>
 </div>
+
+<!-- 出貨入庫確認 Modal -->
+<div class="modal-overlay" id="modal-delivery-stock" style="z-index:450">
+  <div class="modal" style="width:680px;max-width:96vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-title"><i class="ti ti-package"></i> 出貨確認 — 是否同步入庫？</div>
+    <div class="notice notice-info" style="margin-bottom:12px">
+      <i class="ti ti-info-circle"></i>
+      <span>勾選要同步入庫的品項，系統會依照料號自動比對庫存品項並入庫。未勾選的品項僅記錄出貨。</span>
+    </div>
+    <table class="data-table" id="delivery-stock-table">
+      <thead><tr>
+        <th style="width:32px"><input type="checkbox" id="delivery-stock-check-all" onchange="toggleDeliveryStockAll(this)"></th>
+        <th>品名</th><th>料號</th>
+        <th style="text-align:center;color:var(--warning)">本次出貨</th>
+        <th>庫存品項（自動比對）</th>
+        <th>船隻</th>
+      </tr></thead>
+      <tbody id="delivery-stock-tbody"></tbody>
+    </table>
+    <div class="err-msg" id="delivery-stock-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="skipStockLink()">略過，僅記錄出貨</button>
+      <button class="btn btn-sm btn-primary" onclick="confirmDeliveryWithStock()"><i class="ti ti-check"></i>確認出貨並入庫</button>
+    </div>
+  </div>
+</div>
 <!-- 修改出貨數量 Modal -->
 <div class="modal-overlay" id="modal-edit-dqty">
   <div class="modal" style="width:360px">
@@ -3886,10 +3912,8 @@ async function loadCrewStock() {
   const el = document.getElementById('crew-stock-content');
   el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
   const res = await api('getStock', { vesselCode: currentUser.vesselCode });
-  console.log('[loadCrewStock] vesselCode:', currentUser.vesselCode, 'res:', JSON.stringify(res).slice(0,200));
-  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗：' + res.message + '</div>'; return; }
+  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
   _crewStockData = res.data || [];
-  console.log('[loadCrewStock] data length:', _crewStockData.length);
   renderCrewStock();
 }
 
@@ -4329,34 +4353,168 @@ function openRecordDeliveryModal() {
   openModal('modal-record-delivery');
 }
 
+// 暫存出貨資料（供入庫確認 Modal 使用）
+let _pendingDeliveryItems = [];
+
 async function submitRecordDelivery() {
+  // 先收集出貨資料
+  _pendingDeliveryItems = [];
+  for (let i = 0; i < mergeSelectedItems.length; i++) {
+    const item = mergeSelectedItems[i];
+    const dqty = parseFloat(document.getElementById('rdqty_' + i)?.value || item.qty || 0);
+    const prevDq = parseFloat(item.deliveredQty || 0);
+    const totalDq = prevDq + dqty;
+    _pendingDeliveryItems.push({
+      index: i,
+      item,
+      thisDqty: dqty,
+      totalDqty: totalDq,
+    });
+  }
+  // 顯示入庫確認 Modal
+  await openDeliveryStockModal();
+}
+
+async function openDeliveryStockModal() {
+  const tbody = document.getElementById('delivery-stock-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="text-dim text-sm" style="padding:10px;text-align:center">比對庫存中...</td></tr>';
+  openModal('modal-delivery-stock');
+  document.getElementById('delivery-stock-err').textContent = '';
+  document.getElementById('delivery-stock-check-all').checked = true;
+
+  // 依船隻分組，一次載入庫存資料
+  const vesselStockMap = {};
+  const vessels = [...new Set(_pendingDeliveryItems.map(p => p.item.vesselCode))];
+  await Promise.all(vessels.map(async v => {
+    const res = await api('getStock', { vesselCode: v });
+    vesselStockMap[v] = res.success ? (res.data || []) : [];
+  }));
+
+  tbody.innerHTML = '';
+  _pendingDeliveryItems.forEach((pending, i) => {
+    const { item, thisDqty } = pending;
+    const stockList = vesselStockMap[item.vesselCode] || [];
+    // 依料號或品名自動比對
+    const matched = stockList.find(s =>
+      (item.partNo && s['part_no'] && s['part_no'].trim() === item.partNo.trim()) ||
+      s['item_name'] === item.itemName
+    );
+    const matchOpts = ['<option value="">── 略過入庫 ──</option>']
+      .concat(stockList.map(s =>
+        '<option value="' + s['item_id'] + '" ' +
+        (matched && matched['item_id'] === s['item_id'] ? 'selected' : '') + '>' +
+        s['item_name'] + (s['part_no'] ? ' (' + s['part_no'] + ')' : '') +
+        ' [庫存:' + (s['qty_current']||0) + ']</option>'
+      )).join('');
+
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td style="text-align:center"><input type="checkbox" class="delivery-stock-cb" data-idx="' + i + '" checked ' +
+        'onchange="onDeliveryStockCbChange(this)"></td>' +
+      '<td style="font-weight:500">' + item.itemName + '</td>' +
+      '<td style="font-size:11px;font-family:monospace">' + (item.partNo || '-') + '</td>' +
+      '<td style="text-align:center;color:var(--warning);font-weight:600">' + thisDqty + ' ' + item.unit + '</td>' +
+      '<td><select id="ds-stock-sel-' + i + '" style="font-size:11px;width:100%;padding:4px 6px">' + matchOpts + '</select></td>' +
+      '<td><span class="badge badge-active" style="font-size:10px">' + item.vesselCode + '</span></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleDeliveryStockAll(masterCb) {
+  document.querySelectorAll('.delivery-stock-cb').forEach(cb => { cb.checked = masterCb.checked; });
+}
+
+function onDeliveryStockCbChange(cb) {
+  const allCbs = document.querySelectorAll('.delivery-stock-cb');
+  const allChecked = [...allCbs].every(c => c.checked);
+  document.getElementById('delivery-stock-check-all').checked = allChecked;
+}
+
+async function doActualDelivery(stockLinks) {
+  // stockLinks: [{ idx, stockItemId, vesselCode }] 需要入庫的品項
   showLoading('寫入出貨記錄中...');
   let failCount = 0;
   let failMessages = [];
-
-  // 先記錄各品項的出貨數量（送出前存起來，因為之後 mergeSelectedItems 會被清空）
   const deliveredMap = {};
-  for (let i = 0; i < mergeSelectedItems.length; i++) {
-    const item = mergeSelectedItems[i];
-    const dqty = document.getElementById('rdqty_' + i)?.value || item.qty;
-    const _prevDq = parseFloat(item.deliveredQty || 0);
-    const _totalDq = _prevDq + parseFloat(dqty || 0);
-    deliveredMap[item.itemNo] = { vesselCode: item.vesselCode, dqty: String(_totalDq) };
-    // 累加：已出貨 + 本次出貨
-    const _prevDqty = parseFloat(item.deliveredQty || 0);
-    const _thisDqty = parseFloat(dqty || 0);
-    const _totalDqty = _prevDqty + _thisDqty;
+
+  for (const pending of _pendingDeliveryItems) {
+    const { item, totalDqty, thisDqty, index } = pending;
+    deliveredMap[item.itemNo] = { vesselCode: item.vesselCode, dqty: String(totalDqty) };
     const res = await api('updateDeliveredQty', {
       vesselCode: item.vesselCode,
       itemNo: item.itemNo,
-      deliveredQty: _totalDqty
+      deliveredQty: totalDqty
     });
     if (!res.success) {
       failCount++;
       failMessages.push(item.itemNo + ': ' + (res.message || 'unknown error'));
     }
+    // 同步入庫
+    const link = stockLinks.find(l => l.idx === index);
+    if (link && link.stockItemId) {
+      await api('stockIn', {
+        vesselCode: item.vesselCode,
+        itemId: link.stockItemId,
+        qty: thisDqty,
+        refOrderNo: item.orderNo,
+        note: '訂單出貨自動入庫',
+        operator: currentAdmin?.accountId || ''
+      });
+    }
   }
   hideLoading();
+
+  // 更新本地快取
+  if (_allOrdersData) {
+    Object.keys(deliveredMap).forEach(itemNo => {
+      const found = _allOrdersData.find(d => d['item_no'] === itemNo);
+      if (found) found['delivered_qty'] = deliveredMap[itemNo].dqty;
+    });
+  }
+
+  // 清除勾選
+  mergeSelectedItems = [];
+  document.querySelectorAll('.item-check').forEach(cb => {
+    cb.checked = false;
+    cb.closest('tr')?.classList.remove('merge-row-selected');
+  });
+  document.querySelectorAll('.merge-check[id^="chk-all-"]').forEach(cb => cb.checked = false);
+  ['record-delivery-btn','merge-receipt-btn','pick-list-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  closeModal('modal-delivery-stock');
+  if (failCount > 0) alert('部分記錄失敗（' + failCount + ' 筆）：\n' + failMessages.join('\n'));
+
+  loadAllOrders();
+  setTimeout(() => { _allOrdersData = null; loadAllOrders(); }, 3000);
+}
+
+async function confirmDeliveryWithStock() {
+  // 收集勾選的入庫連結
+  const stockLinks = [];
+  document.querySelectorAll('.delivery-stock-cb').forEach(cb => {
+    if (cb.checked) {
+      const idx = parseInt(cb.dataset.idx);
+      const sel = document.getElementById('ds-stock-sel-' + idx);
+      if (sel && sel.value) {
+        stockLinks.push({ idx, stockItemId: sel.value, vesselCode: _pendingDeliveryItems[idx]?.item.vesselCode });
+      }
+    }
+  });
+  await doActualDelivery(stockLinks);
+}
+
+async function skipStockLink() {
+  await doActualDelivery([]); // 不入庫，只記錄出貨
+}
+
+// ── 以下為舊版 doActualDelivery 後半段（清除快取等）────────────
+async function _legacySubmitRecordDelivery_unused() {
+  let failCount = 0;
+  let failMessages = [];
+  const deliveredMap = {};
 
   // 先更新本地快取（在清空 mergeSelectedItems 之前）
   if (_allOrdersData) {
