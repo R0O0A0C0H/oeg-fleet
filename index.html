@@ -17,21 +17,21 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
 <style>
 :root {
-  --bg:       #0f1923;
-  --bg2:      #162030;
-  --bg3:      #1d2d40;
-  --border:   #2a3d52;
-  --border2:  #3a5068;
-  --text:     #e8f0f8;
-  --text2:    #8aa8c4;
-  --text3:    #4d6a82;
+  --bg:       #1a2535;
+  --bg2:      #212f45;
+  --bg3:      #283a52;
+  --border:   #3a5068;
+  --border2:  #4a6380;
+  --text:     #eef4fc;
+  --text2:    #9ab8d4;
+  --text3:    #5d7a92;
   --accent:   #3b9eff;
   --accent2:  #1a6fcc;
   --success:  #2ecc71;
   --warning:  #f39c12;
   --danger:   #e74c3c;
   --info:     #3498db;
-  --navy:     #1B4F7A;
+  --navy:     #1B5C8A;
   --font-mono: 'IBM Plex Mono', monospace;
   --font-main: 'Noto Sans TC', sans-serif;
   --radius:   6px;
@@ -409,6 +409,10 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="nav-item" onclick="crewShowPage('delivery-log')" id="cni-delivery-log"><i class="ti ti-package-export"></i>出貨紀錄</div>
       </div>
       <div class="nav-section">
+        <div class="nav-label">庫存</div>
+        <div class="nav-item" onclick="crewShowPage('stock')" id="cni-stock"><i class="ti ti-box"></i>庫存查詢</div>
+      </div>
+      <div class="nav-section">
         <div class="nav-label">報修作業</div>
         <div class="nav-item" onclick="crewShowPage('repair-new')" id="cni-repair-new"><i class="ti ti-tool"></i>新增報修單</div>
         <div class="nav-item" onclick="crewShowPage('repair-history')" id="cni-repair-history"><i class="ti ti-clipboard-list"></i>報修紀錄</div>
@@ -433,6 +437,10 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           <button class="btn btn-sm" onclick="clearRepairForm()"><i class="ti ti-eraser"></i>清除</button>
           <button class="btn btn-sm btn-primary" onclick="submitRepair()"><i class="ti ti-send"></i>送出報修單</button>
         </div>
+      </div>
+      <div id="cab-stock" class="action-bar" style="display:none">
+        <div class="action-bar-left"><div class="action-bar-title">庫存查詢</div><div class="action-bar-sub">本船庫存資料</div></div>
+        <div class="action-bar-right"><button class="btn btn-sm" onclick="loadCrewStock()"><i class="ti ti-refresh"></i>重新整理</button></div>
       </div>
       <div id="cab-delivery-log" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">出貨紀錄</div><div class="action-bar-sub">已出貨品項紀錄</div></div>
@@ -486,6 +494,18 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         </div>
 
         <!-- 新增報修單 -->
+        <!-- 庫存查詢 -->
+        <div class="page" id="crew-page-stock">
+          <div class="filter-bar">
+            <select id="crew-filter-stock-cat" onchange="renderCrewStock()"><option value="">所有分類</option><option>主機</option><option>電機</option><option>其他</option></select>
+            <select id="crew-filter-stock-loc" onchange="renderCrewStock()"><option value="">所有地點</option><option>左舷住艙倉庫</option><option>右舷住艙倉庫</option><option>貨櫃</option><option>其他</option></select>
+          </div>
+          <div id="crew-stock-alert" style="display:none" class="notice notice-warn"></div>
+          <div class="card" style="overflow-x:auto">
+            <div id="crew-stock-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
+          </div>
+        </div>
+
         <div class="page" id="crew-page-repair-new">
           <div class="card">
             <div class="form-grid">
@@ -571,6 +591,11 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="nav-item" onclick="adminShowPage('repairs')" id="ani-repairs"><i class="ti ti-tool"></i>報修單管理</div>
       </div>
       <div class="nav-section">
+        <div class="nav-label">庫存管理</div>
+        <div class="nav-item" onclick="adminShowPage('stock')" id="ani-stock"><i class="ti ti-box"></i>庫存管理</div>
+        <div class="nav-item" onclick="adminShowPage('stock-log')" id="ani-stock-log"><i class="ti ti-history"></i>異動紀錄</div>
+      </div>
+      <div class="nav-section">
         <div class="nav-label">系統</div>
         <div class="nav-item" onclick="adminShowPage('sys-settings')" id="ani-sys-settings"><i class="ti ti-adjustments"></i>系統設定</div>
       </div>
@@ -623,6 +648,37 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         </div>
       </div>
 
+      <div id="aab-stock" class="action-bar" style="display:none">
+        <div class="action-bar-left">
+          <div class="action-bar-title">庫存管理</div>
+          <div class="action-bar-sub">管理各船庫存品項</div>
+        </div>
+        <div class="action-bar-right">
+          <select id="filter-stock-vessel" onchange="loadAdminStock()" style="font-size:12px;padding:5px 8px">
+            <option value="VLK">VLK 威可利</option>
+            <option value="WTN">WTN 威騰</option>
+            <option value="VLN">VLN 英勇</option>
+            <option value="WYF">WYF 威風</option>
+          </select>
+          <button class="btn btn-sm" onclick="openAddStockModal()"><i class="ti ti-plus"></i>新增品項</button>
+          <button class="btn btn-sm" onclick="loadAdminStock()"><i class="ti ti-refresh"></i>重新整理</button>
+        </div>
+      </div>
+      <div id="aab-stock-log" class="action-bar" style="display:none">
+        <div class="action-bar-left">
+          <div class="action-bar-title">異動紀錄</div>
+          <div class="action-bar-sub">庫存入出庫紀錄</div>
+        </div>
+        <div class="action-bar-right">
+          <select id="filter-stocklog-vessel" onchange="loadStockLog()" style="font-size:12px;padding:5px 8px">
+            <option value="VLK">VLK 威可利</option>
+            <option value="WTN">WTN 威騰</option>
+            <option value="VLN">VLN 英勇</option>
+            <option value="WYF">WYF 威風</option>
+          </select>
+          <button class="btn btn-sm" onclick="loadStockLog()"><i class="ti ti-refresh"></i>重新整理</button>
+        </div>
+      </div>
       <div id="aab-sys-settings" class="action-bar" style="display:none">
         <div class="action-bar-left"><div class="action-bar-title">系統設定</div><div class="action-bar-sub">LOGO 與系統外觀設定</div></div>
         <div class="action-bar-right"></div>
@@ -711,6 +767,26 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           </div>
           <div class="month-tabs" id="admin-repair-tabs"></div>
           <div class="card" style="overflow-x:auto"><div id="repairs-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div></div>
+        </div>
+
+        <!-- 庫存管理 -->
+        <div class="page" id="admin-page-stock">
+          <div class="filter-bar" id="stock-filter-bar">
+            <select id="filter-stock-cat" onchange="renderAdminStock()"><option value="">所有分類</option><option>主機</option><option>電機</option><option>其他</option></select>
+            <select id="filter-stock-loc" onchange="renderAdminStock()"><option value="">所有地點</option><option>左舷住艙倉庫</option><option>右舷住艙倉庫</option><option>貨櫃</option><option>其他</option></select>
+            <select id="filter-stock-status" onchange="renderAdminStock()"><option value="">所有狀態</option><option value="low">低庫存</option><option value="out">缺貨</option><option value="ok">充足</option></select>
+          </div>
+          <div id="stock-alert-banner" style="display:none" class="notice notice-warn" style="margin-bottom:12px"></div>
+          <div class="card" style="overflow-x:auto">
+            <div id="admin-stock-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
+          </div>
+        </div>
+
+        <!-- 異動紀錄 -->
+        <div class="page" id="admin-page-stock-log">
+          <div class="card" style="overflow-x:auto">
+            <div id="admin-stock-log-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
+          </div>
         </div>
 
         <!-- 系統設定 -->
@@ -911,6 +987,82 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 </div>
 
 
+
+<!-- 新增/編輯庫存品項 Modal -->
+<div class="modal-overlay" id="modal-stock-item">
+  <div class="modal" style="width:500px;max-width:96vw">
+    <div class="modal-title"><i class="ti ti-box"></i> <span id="stock-modal-title">新增庫存品項</span></div>
+    <input type="hidden" id="stock-item-id">
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">品名 <span class="req">*</span></label><input type="text" id="stock-item-name" placeholder="例：Fuel Filter"></div>
+      <div class="form-group"><label class="form-label">料號</label><input type="text" id="stock-part-no" placeholder="選填"></div>
+      <div class="form-group">
+        <label class="form-label">分類 <span class="req">*</span></label>
+        <select id="stock-category" onchange="toggleStockCustom('stock-category','stock-cat-custom')">
+          <option value="">請選擇</option>
+          <option>主機</option><option>電機</option><option value="other">其他</option>
+        </select>
+        <input type="text" id="stock-cat-custom" placeholder="輸入自訂分類..." style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group"><label class="form-label">單位</label><input type="text" id="stock-unit" placeholder="例：個、組、升"></div>
+      <div class="form-group form-full">
+        <label class="form-label">存放地點</label>
+        <select id="stock-location" onchange="toggleStockCustom('stock-location','stock-loc-custom')">
+          <option value="">請選擇</option>
+          <option>左舷住艙倉庫</option><option>右舷住艙倉庫</option><option>貨櫃</option><option value="other">其他</option>
+        </select>
+        <input type="text" id="stock-loc-custom" placeholder="輸入自訂地點..." style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group" id="stock-init-qty-group">
+        <label class="form-label">初始庫存數量</label>
+        <input type="number" id="stock-init-qty" min="0" placeholder="0">
+      </div>
+      <div class="form-group" id="stock-min-qty-group">
+        <label class="form-label">安全庫存門檻 <i class="ti ti-lock" style="font-size:11px;color:var(--text3)"></i></label>
+        <input type="number" id="stock-min-qty" min="0" placeholder="5">
+        <div class="hint">低於此數量會顯示低庫存警示</div>
+      </div>
+      <div class="form-group form-full"><label class="form-label">備註</label><input type="text" id="stock-remark" placeholder="選填"></div>
+    </div>
+    <div class="err-msg" id="stock-item-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-stock-item')">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="submitStockItem()"><i class="ti ti-check"></i>儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 入庫 Modal -->
+<div class="modal-overlay" id="modal-stock-in">
+  <div class="modal" style="width:380px">
+    <div class="modal-title"><i class="ti ti-arrow-bar-down" style="color:var(--success)"></i> 入庫</div>
+    <div class="text-sm text-dim" id="stock-in-item-name" style="margin-bottom:12px"></div>
+    <div class="form-group"><label class="form-label">入庫數量 <span class="req">*</span></label><input type="number" id="stock-in-qty" min="1" placeholder="輸入數量"></div>
+    <div class="form-group"><label class="form-label">關聯訂單號</label><input type="text" id="stock-in-order" placeholder="選填"></div>
+    <div class="form-group"><label class="form-label">備註</label><input type="text" id="stock-in-note" placeholder="選填"></div>
+    <div class="err-msg" id="stock-in-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-stock-in')">取消</button>
+      <button class="btn btn-sm btn-success" onclick="submitStockIn()"><i class="ti ti-arrow-bar-down"></i>確認入庫</button>
+    </div>
+  </div>
+</div>
+
+<!-- 出庫 Modal -->
+<div class="modal-overlay" id="modal-stock-out">
+  <div class="modal" style="width:380px">
+    <div class="modal-title"><i class="ti ti-arrow-bar-up" style="color:var(--danger)"></i> 出庫</div>
+    <div class="text-sm text-dim" id="stock-out-item-name" style="margin-bottom:4px"></div>
+    <div class="text-sm" id="stock-out-current" style="margin-bottom:12px"></div>
+    <div class="form-group"><label class="form-label">出庫數量 <span class="req">*</span></label><input type="number" id="stock-out-qty" min="1" placeholder="輸入數量"></div>
+    <div class="form-group"><label class="form-label">備註</label><input type="text" id="stock-out-note" placeholder="選填"></div>
+    <div class="err-msg" id="stock-out-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-stock-out')">取消</button>
+      <button class="btn btn-sm btn-danger" onclick="submitStockOut()"><i class="ti ti-arrow-bar-up"></i>確認出庫</button>
+    </div>
+  </div>
+</div>
 <!-- 上傳簽收圖片 Modal -->
 <div class="modal-overlay" id="modal-signed-upload" style="z-index:400">
   <div class="modal" style="width:460px;max-width:96vw">
@@ -1482,7 +1634,7 @@ function backToLogin() {
   switchLoginTab('login');
 }
 
-const CREW_PAGES = ['order-new','order-history','delivery-log','repair-new','repair-history'];
+const CREW_PAGES = ['order-new','order-history','delivery-log','stock','repair-new','repair-history'];
 
 function crewShowPage(name) {
   CREW_PAGES.forEach(p => {
@@ -1493,6 +1645,7 @@ function crewShowPage(name) {
   });
   if (name === 'order-history') { _orderHistoryData = null; _orderHistoryMonth = null; loadOrderHistory(); }
   if (name === 'delivery-log') { _crewDeliveryLogData = null; loadCrewDeliveryLog(); }
+  if (name === 'stock') { loadCrewStock(); }
   if (name === 'repair-history') { _repairHistoryData = null; _repairHistoryMonth = null; loadRepairHistory(); }
   if (name === 'repair-new') {
     const reporter = document.getElementById('r-reporter');
@@ -2127,7 +2280,7 @@ function doAdminLogout() {
   showScreen('login');
 }
 
-const ADMIN_PAGES = ['admin-accounts','admin-pending','crew-pending','crew-accounts','orders','delivery-log','repairs','sys-settings'];
+const ADMIN_PAGES = ['admin-accounts','admin-pending','crew-pending','crew-accounts','orders','delivery-log','repairs','stock','stock-log','sys-settings'];
 
 function adminShowPage(name) {
   ADMIN_PAGES.forEach(p => {
@@ -2142,6 +2295,8 @@ function adminShowPage(name) {
   if (name === 'crew-accounts') loadCrewAccounts();
   if (name === 'orders') { _allOrdersData = null; _allOrdersMonth = null; loadAllOrders(); }
   if (name === 'delivery-log') { loadDeliveryLog(); }
+  if (name === 'stock') { loadAdminStock(); }
+  if (name === 'stock-log') { loadStockLog(); }
   if (name === 'repairs') { _allRepairsData = null; _allRepairsMonth = null; loadAllRepairs(); }
 }
 
@@ -3598,6 +3753,384 @@ function renderSignedThumbs(urlsStr) {
   return (urlsStr || '').split(',').filter(Boolean).map(function(u) {
     return '<img src="' + u + '" style="width:28px;height:28px;object-fit:cover;border-radius:3px;cursor:pointer;border:0.5px solid var(--success)" onclick="openLightboxUrl(\'' + u + '\')">';
   }).join('');
+}
+
+// ============================================================
+// 庫存管理
+// ============================================================
+let _adminStockData = null;
+let _crewStockData = null;
+let _stockInItemId = '';
+let _stockOutItemId = '';
+let _stockEditItemId = '';
+
+const STOCK_LOCATIONS = ['左舷住艙倉庫','右舷住艙倉庫','貨櫃'];
+const STOCK_CATEGORIES = ['主機','電機'];
+
+function toggleStockCustom(selectId, inputId) {
+  const sel = document.getElementById(selectId);
+  const inp = document.getElementById(inputId);
+  if (!sel || !inp) return;
+  inp.style.display = sel.value === 'other' ? 'block' : 'none';
+}
+
+function getStockVessel() {
+  return document.getElementById('filter-stock-vessel')?.value || 'VLK';
+}
+
+// ── 管理端 ───────────────────────────────────────────────────
+async function loadAdminStock() {
+  _adminStockData = null;
+  const vessel = getStockVessel();
+  const el = document.getElementById('admin-stock-content');
+  el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
+  const res = await api('getStock', { vesselCode: vessel });
+  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
+  _adminStockData = res.data || [];
+  renderAdminStock();
+}
+
+function renderAdminStock() {
+  const el = document.getElementById('admin-stock-content');
+  if (!_adminStockData) return;
+  const vessel = getStockVessel();
+  const isAdmin = true;
+  const filterCat = document.getElementById('filter-stock-cat')?.value;
+  const filterLoc = document.getElementById('filter-stock-loc')?.value;
+  const filterStatus = document.getElementById('filter-stock-status')?.value;
+
+  let data = _adminStockData.slice();
+  if (filterCat) data = data.filter(d => d['category'] === filterCat);
+  if (filterLoc) data = data.filter(d => d['location'] === filterLoc);
+  if (filterStatus) {
+    data = data.filter(d => {
+      const qty = parseFloat(d['qty_current'] || 0);
+      const min = parseFloat(d['qty_min'] || 0);
+      if (filterStatus === 'out') return qty === 0;
+      if (filterStatus === 'low') return qty > 0 && qty < min;
+      if (filterStatus === 'ok') return qty >= min;
+      return true;
+    });
+  }
+
+  // 低庫存警示橫幅
+  const lowItems = _adminStockData.filter(d => {
+    const qty = parseFloat(d['qty_current'] || 0);
+    const min = parseFloat(d['qty_min'] || 0);
+    return qty < min;
+  });
+  const alertEl = document.getElementById('stock-alert-banner');
+  if (alertEl) {
+    if (lowItems.length > 0) {
+      alertEl.style.display = 'flex';
+      alertEl.innerHTML = '<i class="ti ti-alert-triangle"></i><span>' + lowItems.length + ' 個品項低於安全庫存量：' + lowItems.map(d => d['item_name']).join('、') + '</span>';
+    } else {
+      alertEl.style.display = 'none';
+    }
+  }
+
+  if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無庫存品項</div>'; return; }
+
+  let html = '<table class="data-table" style="table-layout:fixed;min-width:900px">' +
+    '<colgroup><col style="min-width:160px"><col style="width:110px"><col style="width:70px"><col style="width:120px"><col style="width:70px;text-align:center"><col style="width:80px;text-align:center"><col style="width:70px"><col style="width:80px"><col style="width:150px"></colgroup>' +
+    '<thead><tr>' +
+    '<th>品名</th><th>料號</th><th>分類</th><th>存放地點</th>' +
+    '<th style="text-align:center">目前庫存</th>' +
+    '<th style="text-align:center"><i class="ti ti-lock" style="font-size:10px"></i> 安全庫存</th>' +
+    '<th>狀態</th><th>最後更新</th><th>操作</th>' +
+    '</tr></thead><tbody>';
+
+  data.forEach(d => {
+    const qty = parseFloat(d['qty_current'] || 0);
+    const min = parseFloat(d['qty_min'] || 0);
+    const isOut = qty === 0;
+    const isLow = !isOut && min > 0 && qty < min;
+    const statusBadge = isOut
+      ? '<span class="badge badge-rejected">缺貨</span>'
+      : isLow
+        ? '<span class="badge badge-pending">低庫存</span>'
+        : '<span class="badge badge-approved">充足</span>';
+    const qtyColor = isOut ? 'var(--danger)' : isLow ? 'var(--warning)' : 'var(--success)';
+    const updated = d['last_updated'] ? String(d['last_updated']).slice(0,10) : '-';
+    html += '<tr>' +
+      '<td><div style="font-weight:500">' + (d['item_name'] || '-') + '</div></td>' +
+      '<td style="font-size:11px;font-family:monospace">' + (d['part_no'] || '-') + '</td>' +
+      '<td><span class="badge badge-active" style="font-size:10px">' + (d['category'] || '-') + '</span></td>' +
+      '<td style="font-size:11px">' + (d['location'] || '-') + '</td>' +
+      '<td style="text-align:center;font-family:monospace;font-size:15px;font-weight:600;color:' + qtyColor + '">' + qty + '</td>' +
+      '<td style="text-align:center;color:var(--text3);font-size:12px">' + (min || '-') + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td style="font-size:11px;color:var(--text2)">' + updated + '</td>' +
+      '<td><div style="display:flex;gap:4px;flex-wrap:wrap">' +
+        (() => {
+          const sid = d['item_id'];
+          const snm = encodeURIComponent(d['item_name'] || '');
+          return '<button class="btn btn-xs btn-success" onclick="openStockIn(\''+sid+'\',decodeURIComponent(\''+snm+'\'),'+qty+')"><i class="ti ti-arrow-bar-down"></i>入庫</button>' +
+            '<button class="btn btn-xs btn-danger" '+(isOut?'disabled style="opacity:.4"':'onclick="openStockOut(\''+sid+'\',decodeURIComponent(\''+snm+'\'),'+qty+')"')+'><i class="ti ti-arrow-bar-up"></i>出庫</button>' +
+            '<button class="btn btn-xs" onclick="openEditStock(\''+sid+'\')"><i class="ti ti-edit"></i></button>' +
+            '<button class="btn btn-xs btn-danger" onclick="deleteStockItem(\''+sid+'\')"><i class="ti ti-trash"></i></button>';
+        })() +
+      '</div></td></tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ── 船員端 ───────────────────────────────────────────────────
+async function loadCrewStock() {
+  _crewStockData = null;
+  const el = document.getElementById('crew-stock-content');
+  el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
+  const res = await api('getStock', { vesselCode: currentUser.vesselCode });
+  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
+  _crewStockData = res.data || [];
+  renderCrewStock();
+}
+
+function renderCrewStock() {
+  const el = document.getElementById('crew-stock-content');
+  if (!_crewStockData) return;
+  const filterCat = document.getElementById('crew-filter-stock-cat')?.value;
+  const filterLoc = document.getElementById('crew-filter-stock-loc')?.value;
+  let data = _crewStockData.slice();
+  if (filterCat) data = data.filter(d => d['category'] === filterCat);
+  if (filterLoc) data = data.filter(d => d['location'] === filterLoc);
+
+  // 低庫存警示
+  const lowItems = _crewStockData.filter(d => parseFloat(d['qty_current']||0) < parseFloat(d['qty_min']||0));
+  const alertEl = document.getElementById('crew-stock-alert');
+  if (alertEl) {
+    alertEl.style.display = lowItems.length > 0 ? 'flex' : 'none';
+    if (lowItems.length > 0) alertEl.innerHTML = '<i class="ti ti-alert-triangle"></i><span>' + lowItems.length + ' 個品項庫存不足</span>';
+  }
+
+  if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無庫存品項</div>'; return; }
+
+  let html = '<table class="data-table" style="table-layout:fixed;min-width:700px">' +
+    '<thead><tr><th>品名</th><th>料號</th><th>分類</th><th>存放地點</th><th style="text-align:center">目前庫存</th><th>狀態</th><th>最後更新</th></tr></thead><tbody>';
+  data.forEach(d => {
+    const qty = parseFloat(d['qty_current'] || 0);
+    const min = parseFloat(d['qty_min'] || 0);
+    const isOut = qty === 0;
+    const isLow = !isOut && min > 0 && qty < min;
+    const statusBadge = isOut ? '<span class="badge badge-rejected">缺貨</span>' : isLow ? '<span class="badge badge-pending">低庫存</span>' : '<span class="badge badge-approved">充足</span>';
+    const qtyColor = isOut ? 'var(--danger)' : isLow ? 'var(--warning)' : 'var(--success)';
+    html += '<tr>' +
+      '<td style="font-weight:500">' + (d['item_name'] || '-') + '</td>' +
+      '<td style="font-size:11px;font-family:monospace">' + (d['part_no'] || '-') + '</td>' +
+      '<td><span class="badge badge-active" style="font-size:10px">' + (d['category'] || '-') + '</span></td>' +
+      '<td style="font-size:11px">' + (d['location'] || '-') + '</td>' +
+      '<td style="text-align:center;font-family:monospace;font-size:15px;font-weight:600;color:' + qtyColor + '">' + qty + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td style="font-size:11px;color:var(--text2)">' + (d['last_updated'] ? String(d['last_updated']).slice(0,10) : '-') + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ── Modal 操作 ────────────────────────────────────────────────
+function openAddStockModal() {
+  _stockEditItemId = '';
+  document.getElementById('stock-modal-title').textContent = '新增庫存品項';
+  document.getElementById('stock-item-id').value = '';
+  ['stock-item-name','stock-part-no','stock-unit','stock-cat-custom','stock-loc-custom','stock-remark'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('stock-category').value = '';
+  document.getElementById('stock-location').value = '';
+  document.getElementById('stock-cat-custom').style.display = 'none';
+  document.getElementById('stock-loc-custom').style.display = 'none';
+  document.getElementById('stock-init-qty').value = '0';
+  document.getElementById('stock-min-qty').value = '';
+  document.getElementById('stock-init-qty-group').style.display = 'block';
+  document.getElementById('stock-item-err').textContent = '';
+  openModal('modal-stock-item');
+}
+
+function openEditStock(itemId) {
+  const d = (_adminStockData || []).find(i => i['item_id'] === itemId);
+  if (!d) return;
+  _stockEditItemId = itemId;
+  document.getElementById('stock-modal-title').textContent = '編輯庫存品項';
+  document.getElementById('stock-item-id').value = itemId;
+  document.getElementById('stock-item-name').value = d['item_name'] || '';
+  document.getElementById('stock-part-no').value = d['part_no'] || '';
+  document.getElementById('stock-unit').value = d['unit'] || '';
+  document.getElementById('stock-remark').value = d['remark'] || '';
+  document.getElementById('stock-min-qty').value = d['qty_min'] || '';
+  // 分類
+  const cat = d['category'] || '';
+  const catSel = document.getElementById('stock-category');
+  if (['主機','電機'].includes(cat)) { catSel.value = cat; document.getElementById('stock-cat-custom').style.display = 'none'; }
+  else { catSel.value = 'other'; document.getElementById('stock-cat-custom').style.display = 'block'; document.getElementById('stock-cat-custom').value = cat; }
+  // 地點
+  const loc = d['location'] || '';
+  const locSel = document.getElementById('stock-location');
+  if (STOCK_LOCATIONS.includes(loc)) { locSel.value = loc; document.getElementById('stock-loc-custom').style.display = 'none'; }
+  else { locSel.value = 'other'; document.getElementById('stock-loc-custom').style.display = 'block'; document.getElementById('stock-loc-custom').value = loc; }
+  // 編輯時隱藏初始庫存
+  document.getElementById('stock-init-qty-group').style.display = 'none';
+  document.getElementById('stock-item-err').textContent = '';
+  openModal('modal-stock-item');
+}
+
+async function submitStockItem() {
+  const errEl = document.getElementById('stock-item-err');
+  errEl.textContent = '';
+  const itemName = document.getElementById('stock-item-name').value.trim();
+  if (!itemName) { errEl.textContent = '請填寫品名'; return; }
+  let category = document.getElementById('stock-category').value;
+  if (category === 'other') category = document.getElementById('stock-cat-custom').value.trim() || '其他';
+  if (!category) { errEl.textContent = '請選擇分類'; return; }
+  let location = document.getElementById('stock-location').value;
+  if (location === 'other') location = document.getElementById('stock-loc-custom').value.trim() || '其他';
+
+  const vessel = getStockVessel();
+  const operator = currentAdmin?.accountId || currentUser?.accountId || '';
+
+  if (_stockEditItemId) {
+    showLoading('更新中...');
+    const res = await api('updateStockItem', {
+      vesselCode: vessel, itemId: _stockEditItemId,
+      itemName, partNo: document.getElementById('stock-part-no').value.trim(),
+      category, unit: document.getElementById('stock-unit').value.trim(),
+      location, remark: document.getElementById('stock-remark').value.trim(),
+      qtyMin: document.getElementById('stock-min-qty').value || 0,
+    });
+    hideLoading();
+    if (res.success) { closeModal('modal-stock-item'); loadAdminStock(); }
+    else errEl.textContent = res.message || '更新失敗';
+  } else {
+    showLoading('新增中...');
+    const res = await api('addStockItem', {
+      vesselCode: vessel, itemName,
+      partNo: document.getElementById('stock-part-no').value.trim(),
+      category, unit: document.getElementById('stock-unit').value.trim(),
+      location, remark: document.getElementById('stock-remark').value.trim(),
+      qtyInitial: document.getElementById('stock-init-qty').value || 0,
+      qtyMin: document.getElementById('stock-min-qty').value || 0,
+      operator,
+    });
+    hideLoading();
+    if (res.success) { closeModal('modal-stock-item'); loadAdminStock(); }
+    else errEl.textContent = res.message || '新增失敗';
+  }
+}
+
+async function deleteStockItem(itemId) {
+  if (!confirm('確定刪除此庫存品項？此操作無法復原。')) return;
+  showLoading('刪除中...');
+  const res = await api('deleteStockItem', { vesselCode: getStockVessel(), itemId });
+  hideLoading();
+  if (res.success) loadAdminStock();
+  else alert('刪除失敗：' + res.message);
+}
+
+function openStockIn(itemId, itemName, currentQty) {
+  _stockInItemId = itemId;
+  document.getElementById('stock-in-item-name').textContent = itemName + '（目前庫存：' + currentQty + '）';
+  document.getElementById('stock-in-qty').value = '';
+  document.getElementById('stock-in-order').value = '';
+  document.getElementById('stock-in-note').value = '';
+  document.getElementById('stock-in-err').textContent = '';
+  openModal('modal-stock-in');
+}
+
+async function submitStockIn() {
+  const qty = document.getElementById('stock-in-qty').value;
+  if (!qty || parseFloat(qty) <= 0) { document.getElementById('stock-in-err').textContent = '請輸入有效數量'; return; }
+  const vessel = getStockVessel();
+  showLoading('入庫中...');
+  const res = await api('stockIn', {
+    vesselCode: vessel, itemId: _stockInItemId, qty,
+    refOrderNo: document.getElementById('stock-in-order').value.trim(),
+    note: document.getElementById('stock-in-note').value.trim(),
+    operator: currentAdmin?.accountId || currentUser?.accountId || ''
+  });
+  hideLoading();
+  if (res.success) { closeModal('modal-stock-in'); loadAdminStock(); }
+  else document.getElementById('stock-in-err').textContent = res.message || '入庫失敗';
+}
+
+function openStockOut(itemId, itemName, currentQty) {
+  _stockOutItemId = itemId;
+  document.getElementById('stock-out-item-name').textContent = itemName;
+  document.getElementById('stock-out-current').innerHTML = '目前庫存：<strong style="color:var(--warning)">' + currentQty + '</strong>';
+  document.getElementById('stock-out-qty').value = '';
+  document.getElementById('stock-out-note').value = '';
+  document.getElementById('stock-out-err').textContent = '';
+  openModal('modal-stock-out');
+}
+
+async function submitStockOut() {
+  const qty = document.getElementById('stock-out-qty').value;
+  if (!qty || parseFloat(qty) <= 0) { document.getElementById('stock-out-err').textContent = '請輸入有效數量'; return; }
+  const vessel = getStockVessel();
+  showLoading('出庫中...');
+  const res = await api('stockOut', {
+    vesselCode: vessel, itemId: _stockOutItemId, qty,
+    note: document.getElementById('stock-out-note').value.trim(),
+    operator: currentAdmin?.accountId || currentUser?.accountId || ''
+  });
+  hideLoading();
+  if (res.success) { closeModal('modal-stock-out'); loadAdminStock(); }
+  else document.getElementById('stock-out-err').textContent = res.message || '出庫失敗';
+}
+
+// ── 異動紀錄 ─────────────────────────────────────────────────
+async function loadStockLog() {
+  const vessel = document.getElementById('filter-stocklog-vessel')?.value || 'VLK';
+  const el = document.getElementById('admin-stock-log-content');
+  el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
+  const res = await api('getStockLog', { vesselCode: vessel });
+  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
+  const data = res.data || [];
+  if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">尚無異動紀錄</div>'; return; }
+  let html = '<table class="data-table"><thead><tr>' +
+    '<th>時間</th><th>類型</th><th>品名</th><th style="text-align:center">異動數量</th><th style="text-align:center">異動後庫存</th><th>關聯訂單</th><th>操作人員</th><th>備註</th>' +
+    '</tr></thead><tbody>';
+  data.forEach(d => {
+    const qty = parseFloat(d['qty_change'] || 0);
+    const isIn = qty > 0;
+    const typeColor = isIn ? 'var(--success)' : 'var(--danger)';
+    const typeIcon = isIn ? '<i class="ti ti-arrow-bar-down"></i>' : '<i class="ti ti-arrow-bar-up"></i>';
+    html += '<tr>' +
+      '<td style="font-size:11px">' + (d['created_at'] ? String(d['created_at']).slice(0,16) : '-') + '</td>' +
+      '<td style="color:' + typeColor + ';font-weight:500">' + typeIcon + ' ' + (d['type'] || '-') + '</td>' +
+      '<td>' + (d['item_name'] || '-') + '</td>' +
+      '<td style="text-align:center;font-family:monospace;font-weight:600;color:' + typeColor + '">' + (isIn ? '+' : '') + qty + '</td>' +
+      '<td style="text-align:center;font-family:monospace">' + (d['qty_after'] || 0) + '</td>' +
+      '<td style="font-size:11px;color:var(--text2)">' + (d['ref_order_no'] || '-') + '</td>' +
+      '<td style="font-size:11px">' + (d['operator'] || '-') + '</td>' +
+      '<td style="font-size:11px;color:var(--text2)">' + (d['note'] || '-') + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ── 出貨後自動入庫 ─────────────────────────────────────────────
+async function autoStockInFromDelivery(vesselCode, items) {
+  // items: [{ itemName, partNo, qty, unit, itemNo, orderNo }]
+  for (const item of items) {
+    const stockData = await api('getStock', { vesselCode });
+    if (!stockData.success) continue;
+    // 嘗試比對料號或品名
+    const match = (stockData.data || []).find(d =>
+      (item.partNo && d['part_no'] && d['part_no'] === item.partNo) ||
+      d['item_name'] === item.itemName
+    );
+    if (match) {
+      await api('stockIn', {
+        vesselCode, itemId: match['item_id'],
+        qty: item.qty,
+        refOrderNo: item.orderNo,
+        note: '訂單自動入庫',
+        operator: currentAdmin?.accountId || ''
+      });
+    }
+  }
 }
 // ============================================================
 // 取消出貨
