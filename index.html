@@ -743,6 +743,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="action-bar-left"><div class="action-bar-title">模板管理</div><div class="action-bar-sub">共用保養模板</div></div>
         <div class="action-bar-right">
           <button class="btn btn-sm btn-primary" onclick="openAddTemplateModal()"><i class="ti ti-plus"></i>新增模板</button>
+          <button class="btn btn-sm" onclick="addPmsTemplateGroup()"><i class="ti ti-folder-plus"></i>新增群組</button>
           <button class="btn btn-sm" onclick="loadPmsTemplates()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
@@ -4053,40 +4054,52 @@ async function loadPmsTemplates() {
   renderPmsTemplates();
 }
 
+let _pmsExtraGroups = []; // 使用者按「新增群組」建立、目前尚無模板的空群組（僅存於本次瀏覽期間）
+
 function renderPmsTemplates() {
   const el = document.getElementById('admin-pms-templates-content');
   const data = _pmsTemplates || [];
-  if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無模板，點選右上角新增</div>'; return; }
+  if (data.length === 0 && _pmsExtraGroups.length === 0) {
+    el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無模板，點選右上角新增</div>';
+    return;
+  }
 
-  // 依「設備」欄位分組，保留原本（拖曳排序後）的先後順序
+  // 依「群組」欄位分組（tpl_group，未設定則歸入設備欄位或未分類），保留原本（拖曳排序後）的先後順序
   const groupOrder = [];
   const groups = {};
   data.forEach(d => {
-    const key = d['equipment'] || '未分類';
+    const key = d['tpl_group'] || d['equipment'] || '未分類';
     if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
     groups[key].push(d);
+  });
+  // 加入使用者建立、目前還是空的群組
+  _pmsExtraGroups.forEach(g => {
+    if (!groups[g]) { groups[g] = []; groupOrder.push(g); }
   });
 
   let html = '';
   groupOrder.forEach((groupName, gi) => {
+    const safeGroup = groupName.replace(/'/g, "\\'");
     html += '<div style="margin-bottom:18px">' +
       '<div style="font-size:12px;font-weight:600;color:var(--text2);padding:6px 2px;margin-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px">' +
-        '<i class="ti ti-engine" style="font-size:13px;color:var(--text3)"></i>' + groupName +
+        '<i class="ti ti-folder" style="font-size:13px;color:var(--text3)"></i>' + groupName +
         '<span style="font-weight:400;color:var(--text3);font-size:11px">（' + groups[groupName].length + '）</span>' +
+        (groups[groupName].length === 0 ? '<button class="btn btn-xs" style="margin-left:auto" onclick="removePmsTemplateGroup(\'' + safeGroup + '\')"><i class="ti ti-x"></i> 移除空群組</button>' : '') +
       '</div>' +
       '<table class="data-table" style="min-width:900px"><thead><tr>' +
         '<th style="width:28px"></th>' +
-        '<th>模板名稱</th><th>分類</th><th style="text-align:center">週期（hrs）</th>' +
+        '<th>模板名稱</th><th>設備</th><th>分類</th><th style="text-align:center">週期（hrs）</th>' +
         '<th>建議物料</th><th>最後修改</th><th>操作</th></tr></thead>' +
-        '<tbody id="pms-tpl-group-' + gi + '" data-group="' + gi + '">';
+        '<tbody id="pms-tpl-group-' + gi + '" data-group-name="' + safeGroup + '" style="min-height:8px">';
     groups[groupName].forEach(d => {
       let mats = [];
       try { mats = JSON.parse(d['materials'] || '[]'); } catch(e) {}
       const matStr = mats.length > 0 ? mats.map(m => m.name + ' × ' + m.qty + m.unit).join('、') : '—';
       const tid = d['template_id'];
       html += '<tr data-tid="' + tid + '">' +
-        '<td><i class="ti ti-grip-vertical" style="cursor:grab;color:var(--text3);touch-action:none" title="拖曳排序"></i></td>' +
+        '<td><i class="ti ti-grip-vertical" style="cursor:grab;color:var(--text3);touch-action:none" title="拖曳排序 / 拖曳到其他群組"></i></td>' +
         '<td style="font-weight:500">' + (d['name']||'-') + '</td>' +
+        '<td style="font-size:12px">' + (d['equipment']||'-') + '</td>' +
         '<td><span class="badge badge-active" style="font-size:10px">' + (d['category']||'-') + '</span></td>' +
         '<td style="text-align:center;font-family:monospace;font-weight:600">' + (d['cycle_hrs']||'-') + '</td>' +
         '<td style="font-size:11px;color:var(--text2)">' + matStr + '</td>' +
@@ -4109,6 +4122,7 @@ function initTemplateSortable() {
     if (tbody._sortableInstance) tbody._sortableInstance.destroy();
     tbody._sortableInstance = new Sortable(tbody, {
       handle: '.ti-grip-vertical',
+      group: 'pms-templates',   // 相同 group 名稱，允許跨群組互拖
       animation: 150,
       ghostClass: 'sortable-ghost',
       onEnd: onTemplateReorder
@@ -4116,7 +4130,18 @@ function initTemplateSortable() {
   });
 }
 
-async function onTemplateReorder() {
+async function onTemplateReorder(evt) {
+  // 若品項被拖到別的群組，先更新該模板的群組欄位
+  if (evt && evt.to && evt.from && evt.to !== evt.from) {
+    const tid = evt.item?.dataset?.tid;
+    const newGroup = evt.to.dataset.groupName;
+    if (tid && newGroup) {
+      const tpl = (_pmsTemplates || []).find(t => t['template_id'] === tid);
+      if (tpl) tpl['tpl_group'] = newGroup;
+      await api('saveTemplateGroup', { templateId: tid, group: newGroup });
+    }
+  }
+
   // 依畫面上目前的分組與各組內順序，重組完整排序清單
   const ids = [];
   document.querySelectorAll('[id^="pms-tpl-group-"]').forEach(tbody => {
@@ -4127,6 +4152,23 @@ async function onTemplateReorder() {
   _pmsTemplates = ids.map(id => map[id]).filter(Boolean);
   const res = await api('saveTemplateOrder', { templateIds: ids });
   if (!res.success) { alert('排序儲存失敗：' + (res.message || '')); loadPmsTemplates(); }
+
+  // 拖走後若原群組是使用者建立的空群組，畫面重繪即可自然保留（因為仍在 _pmsExtraGroups 清單中）
+  renderPmsTemplates();
+}
+
+function addPmsTemplateGroup() {
+  const name = (prompt('請輸入新群組名稱：') || '').trim();
+  if (!name) return;
+  const existing = new Set((_pmsTemplates || []).map(t => t['tpl_group'] || t['equipment'] || '未分類').concat(_pmsExtraGroups));
+  if (existing.has(name)) { alert('此群組名稱已存在'); return; }
+  _pmsExtraGroups.push(name);
+  renderPmsTemplates();
+}
+
+function removePmsTemplateGroup(name) {
+  _pmsExtraGroups = _pmsExtraGroups.filter(g => g !== name);
+  renderPmsTemplates();
 }
 
 
