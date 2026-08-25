@@ -164,7 +164,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .loading-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:300}
 .loading-overlay.open{display:flex}
-.loading-box{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:24px 32px;text-align:center}
+.loading-box{background:var(--bg2);border-bottom:0.5px solid var(--border);width:100%;padding:10px 28px;display:flex;flex-direction:row;align-items:center;gap:14px}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .filter-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
@@ -291,9 +291,9 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 <!-- Loading -->
 <div class="loading-overlay" id="loading">
   <div class="loading-box">
-    <div class="spinner"></div>
-    <div class="text-dim text-sm" id="loading-msg">處理中...</div>
-    <div style="font-family:var(--font-mono);font-size:18px;font-weight:500;color:var(--accent);margin-top:8px;letter-spacing:0.05em" id="loading-timer">0.0s</div>
+    <div class="spinner" style="width:18px;height:18px;border-width:2px;flex-shrink:0"></div>
+    <div class="text-dim text-sm" id="loading-msg" style="flex:1">處理中...</div>
+    <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--accent);letter-spacing:0.08em;flex-shrink:0" id="loading-timer">0.0s</div>
   </div>
 </div>
 
@@ -1118,6 +1118,32 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
     <div class="modal-actions">
       <button class="btn btn-sm" onclick="skipStockLink()">略過，僅記錄出貨</button>
       <button class="btn btn-sm btn-primary" onclick="confirmDeliveryWithStock()"><i class="ti ti-check"></i>確認出貨並入庫</button>
+    </div>
+  </div>
+</div>
+
+<!-- 取消出貨庫存確認 Modal -->
+<div class="modal-overlay" id="modal-cancel-stock" style="z-index:450">
+  <div class="modal" style="width:620px;max-width:96vw;max-height:92vh;overflow-y:auto">
+    <div class="modal-title"><i class="ti ti-package-off" style="color:var(--danger)"></i> 取消出貨 — 是否同步從庫存扣除？</div>
+    <div class="notice notice-warn" style="margin-bottom:12px">
+      <i class="ti ti-alert-triangle"></i>
+      <span>取消出貨後，已入庫的數量將從庫存中扣除（出庫）。請確認要扣除的庫存品項與數量。</span>
+    </div>
+    <table class="data-table" id="cancel-stock-table">
+      <thead><tr>
+        <th style="width:32px"><input type="checkbox" id="cancel-stock-check-all" onchange="toggleCancelStockAll(this)"></th>
+        <th>品名</th><th>料號</th>
+        <th style="text-align:center;color:var(--danger)">扣除數量</th>
+        <th>庫存品項</th>
+        <th>船隻</th>
+      </tr></thead>
+      <tbody id="cancel-stock-tbody"></tbody>
+    </table>
+    <div class="err-msg" id="cancel-stock-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="skipCancelStock()">略過，僅取消出貨</button>
+      <button class="btn btn-sm btn-danger" onclick="confirmCancelWithStock()"><i class="ti ti-package-off"></i>確認取消並扣庫存</button>
     </div>
   </div>
 </div>
@@ -4292,36 +4318,140 @@ function toggleSelectAllDelivery(masterCb, oi) {
   });
 }
 
+let _pendingCancelOi = null;
+let _pendingCancelSelected = [];
+
 async function cancelSelectedDelivery(oi) {
   const selected = _deliverySelectedByOrder[oi] || [];
   if (selected.length === 0) return;
-  if (!confirm('確定取消這 ' + selected.length + ' 個品項的出貨記錄？\n品項將回到訂單管理，待出貨數量會恢復。')) return;
 
+  _pendingCancelOi = oi;
+  _pendingCancelSelected = selected;
+
+  // 顯示庫存確認 Modal
+  await openCancelStockModal(selected);
+}
+
+async function openCancelStockModal(selected) {
+  const tbody = document.getElementById('cancel-stock-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="text-dim text-sm" style="padding:10px;text-align:center">比對庫存中...</td></tr>';
+  document.getElementById('cancel-stock-err').textContent = '';
+  document.getElementById('cancel-stock-check-all').checked = true;
+  openModal('modal-cancel-stock');
+
+  // 依船隻載入庫存
+  const vesselStockMap = {};
+  const vessels = [...new Set(selected.map(s => s.vesselCode))];
+  await Promise.all(vessels.map(async v => {
+    const res = await api('getStock', { vesselCode: v });
+    vesselStockMap[v] = res.success ? (res.data || []) : [];
+  }));
+
+  tbody.innerHTML = '';
+  selected.forEach((item, i) => {
+    const stockList = vesselStockMap[item.vesselCode] || [];
+    // 取得已出貨數量
+    const deliveryData = (_deliveryLogData || []).find(d => d['item_no'] === item.itemNo);
+    const dqty = parseFloat(deliveryData?.['delivered_qty'] || 0);
+
+    // 依料號或品名比對
+    const matched = stockList.find(s =>
+      (item.partNo && s['part_no'] && s['part_no'].trim() === (item.partNo||'').trim()) ||
+      s['item_name'] === item.itemName
+    );
+
+    const matchOpts = ['<option value="">── 略過 ──</option>']
+      .concat(stockList.map(s =>
+        '<option value="' + s['item_id'] + '" ' +
+        (matched && matched['item_id'] === s['item_id'] ? 'selected' : '') + '>' +
+        s['item_name'] + (s['part_no'] ? ' (' + s['part_no'] + ')' : '') +
+        ' [庫存:' + (s['qty_current']||0) + ']</option>'
+      )).join('');
+
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td style="text-align:center"><input type="checkbox" class="cancel-stock-cb" data-idx="' + i + '" checked onchange="onCancelStockCbChange(this)"></td>' +
+      '<td style="font-weight:500">' + (item.itemName || '-') + '</td>' +
+      '<td style="font-size:11px;font-family:monospace">' + (item.partNo || '-') + '</td>' +
+      '<td style="text-align:center;color:var(--danger);font-weight:600">-' + dqty + '</td>' +
+      '<td><select id="cs-stock-sel-' + i + '" style="font-size:11px;width:100%;padding:4px 6px">' + matchOpts + '</select></td>' +
+      '<td><span class="badge badge-active" style="font-size:10px">' + item.vesselCode + '</span></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleCancelStockAll(masterCb) {
+  document.querySelectorAll('.cancel-stock-cb').forEach(cb => { cb.checked = masterCb.checked; });
+}
+
+function onCancelStockCbChange(cb) {
+  const allCbs = document.querySelectorAll('.cancel-stock-cb');
+  document.getElementById('cancel-stock-check-all').checked = [...allCbs].every(c => c.checked);
+}
+
+async function doActualCancel(stockLinks) {
   showLoading('取消出貨中...');
   let failCount = 0;
-  for (const item of selected) {
+  const selected = _pendingCancelSelected;
+
+  for (let i = 0; i < selected.length; i++) {
+    const item = selected[i];
+    // 清零 delivered_qty
     const res = await api('updateDeliveredQty', {
       vesselCode: item.vesselCode,
       itemNo: item.itemNo,
       deliveredQty: 0
     });
     if (!res.success) failCount++;
+
+    // 庫存出庫（扣除）
+    const link = stockLinks.find(l => l.idx === i);
+    if (link && link.stockItemId && link.dqty > 0) {
+      await api('stockOut', {
+        vesselCode: item.vesselCode,
+        itemId: link.stockItemId,
+        qty: link.dqty,
+        note: '取消出貨退庫',
+        operator: currentAdmin?.accountId || ''
+      });
+    }
   }
   hideLoading();
 
-  _deliverySelectedByOrder[oi] = [];
+  _deliverySelectedByOrder[_pendingCancelOi] = [];
+  closeModal('modal-cancel-stock');
+
   if (failCount > 0) alert('部分取消失敗（' + failCount + ' 筆），請重新整理確認。');
 
-  // 同步更新訂單管理快取
   if (_allOrdersData) {
     selected.forEach(item => {
       const found = _allOrdersData.find(d => d['item_no'] === item.itemNo);
       if (found) found['delivered_qty'] = 0;
     });
   }
-  // 重整兩個頁面
   loadDeliveryLog();
   loadAllOrders();
+}
+
+async function confirmCancelWithStock() {
+  const stockLinks = [];
+  document.querySelectorAll('.cancel-stock-cb').forEach(cb => {
+    if (cb.checked) {
+      const idx = parseInt(cb.dataset.idx);
+      const sel = document.getElementById('cs-stock-sel-' + idx);
+      const item = _pendingCancelSelected[idx];
+      const deliveryData = (_deliveryLogData || []).find(d => d['item_no'] === item?.itemNo);
+      const dqty = parseFloat(deliveryData?.['delivered_qty'] || 0);
+      if (sel && sel.value && dqty > 0) {
+        stockLinks.push({ idx, stockItemId: sel.value, dqty });
+      }
+    }
+  });
+  await doActualCancel(stockLinks);
+}
+
+async function skipCancelStock() {
+  await doActualCancel([]); // 只取消出貨，不動庫存
 }
 // ============================================================
 // 紀錄出貨
