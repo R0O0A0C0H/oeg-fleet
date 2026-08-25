@@ -640,6 +640,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       </div>
       <div class="nav-section">
         <div class="nav-label">PMS - 計畫保養系統</div>
+        <div class="nav-item" onclick="adminShowPage('pms-home')" id="ani-pms-home"><i class="ti ti-gauge"></i>PMS 主頁</div>
         <div class="nav-item" onclick="adminShowPage('pms')" id="ani-pms"><i class="ti ti-tool"></i>保養計畫</div>
         <div class="nav-item" onclick="adminShowPage('pms-templates')" id="ani-pms-templates"><i class="ti ti-template"></i>模板管理</div>
         <div class="nav-item" onclick="adminShowPage('pms-log')" id="ani-pms-log"><i class="ti ti-history"></i>保養紀錄</div>
@@ -726,6 +727,17 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
             <option value="WYF">WYF 威風</option>
           </select>
           <button class="btn btn-sm" onclick="loadStockLog()"><i class="ti ti-refresh"></i>重新整理</button>
+        </div>
+      </div>
+      <div id="aab-pms-home" class="action-bar" style="display:none">
+        <div class="action-bar-left"><div class="action-bar-title">PMS 主頁</div><div class="action-bar-sub">運轉時數計數器</div></div>
+        <div class="action-bar-right">
+          <select id="filter-pms-home-vessel" onchange="loadAdminCounters()" style="font-size:12px;padding:5px 8px">
+            <option value="VLK">VLK 威可利</option><option value="WTN">WTN 威騰</option>
+            <option value="VLN">VLN 英勇</option><option value="WYF">WYF 威風</option>
+          </select>
+          <button class="btn btn-sm" onclick="openAddCounterModal()"><i class="ti ti-plus"></i>新增計數器</button>
+          <button class="btn btn-sm" onclick="loadAdminCounters()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
       <div id="aab-pms" class="action-bar" style="display:none">
@@ -863,6 +875,13 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="page" id="admin-page-stock-log">
           <div class="card" style="overflow-x:auto">
             <div id="admin-stock-log-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
+          </div>
+        </div>
+
+        <!-- PMS 主頁（計數器） -->
+        <div class="page" id="admin-page-pms-home">
+          <div class="card" style="overflow-x:auto">
+            <div id="admin-counters-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
           </div>
         </div>
 
@@ -1196,6 +1215,29 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
     <div class="modal-actions">
       <button class="btn btn-sm" onclick="closeModal('modal-update-hours')">取消</button>
       <button class="btn btn-sm btn-primary" onclick="submitUpdateHours()"><i class="ti ti-check"></i>更新時數</button>
+    </div>
+  </div>
+</div>
+<!-- 新增計數器 Modal -->
+<div class="modal-overlay" id="modal-add-counter">
+  <div class="modal" style="width:420px">
+    <div class="modal-title"><i class="ti ti-gauge"></i> 新增計數器</div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">名稱 <span class="req">*</span></label>
+      <input type="text" id="counter-name" placeholder="例：Main engine PS - outer">
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">單位</label>
+      <input type="text" id="counter-unit" placeholder="例：Hours" value="Hours">
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">初始數值</label>
+      <input type="number" id="counter-init-val" value="0">
+    </div>
+    <div class="err-msg" id="counter-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-add-counter')">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="submitAddCounter()"><i class="ti ti-check"></i>新增</button>
     </div>
   </div>
 </div>
@@ -2546,7 +2588,7 @@ function doAdminLogout() {
   showScreen('login');
 }
 
-const ADMIN_PAGES = ['admin-accounts','admin-pending','crew-pending','crew-accounts','orders','delivery-log','repairs','stock','stock-log','pms','pms-templates','pms-log','sys-settings'];
+const ADMIN_PAGES = ['admin-accounts','admin-pending','crew-pending','crew-accounts','orders','delivery-log','repairs','stock','stock-log','pms-home','pms','pms-templates','pms-log','sys-settings'];
 
 function adminShowPage(name) {
   ADMIN_PAGES.forEach(p => {
@@ -2563,6 +2605,7 @@ function adminShowPage(name) {
   if (name === 'delivery-log') { loadDeliveryLog(); }
   if (name === 'stock') { loadAdminStock(); }
   if (name === 'stock-log') { loadStockLog(); }
+  if (name === 'pms-home') { loadAdminCounters(); }
   if (name === 'pms') { loadAdminPms(); }
   if (name === 'pms-templates') { loadPmsTemplates(); }
   if (name === 'pms-log') { loadAdminPmsLog(); }
@@ -4265,7 +4308,125 @@ function getPmsVessel() {
   return document.getElementById('filter-pms-vessel')?.value || currentUser?.vesselCode || 'VLK';
 }
 
-async function loadAdminPms() {
+// ============================================================
+// PMS 主頁（計數器）
+// ============================================================
+let _pmsCountersData = null;
+
+function getPmsHomeVessel() {
+  return document.getElementById('filter-pms-home-vessel')?.value || 'VLK';
+}
+
+async function loadAdminCounters() {
+  const vessel = getPmsHomeVessel();
+  const el = document.getElementById('admin-counters-content');
+  el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
+  const res = await api('getCounters', { vesselCode: vessel });
+  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
+  _pmsCountersData = res.data || [];
+  renderAdminCounters();
+}
+
+function renderAdminCounters() {
+  const el = document.getElementById('admin-counters-content');
+  const data = _pmsCountersData || [];
+  if (data.length === 0) {
+    el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無計數器，點選右上角「新增計數器」</div>';
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  let html = '<table class="data-table" style="min-width:900px"><thead><tr>' +
+    '<th>Counter</th><th style="text-align:right">Actual counter value</th>' +
+    '<th style="text-align:right">Last counter value</th><th>Unit</th><th>Record date</th><th></th>' +
+    '</tr></thead><tbody>';
+  data.forEach(d => {
+    const cid = d['counter_id'];
+    html += '<tr data-cid="' + cid + '">' +
+      '<td style="font-weight:500">' + (d['name']||'-') + '</td>' +
+      '<td style="text-align:right"><input type="number" class="counter-val-input" data-cid="' + cid + '" value="' + (d['last_value']||0) + '" style="width:120px;text-align:right;font-family:monospace;padding:5px 8px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text)" oninput="onCounterValueInput(this)"></td>' +
+      '<td style="text-align:right;font-family:monospace;color:var(--text3)">' + (d['last_value']||0) + '</td>' +
+      '<td style="font-size:12px">' + (d['unit']||'Hours') + '</td>' +
+      '<td style="font-size:12px;color:var(--text2)">' + (d['record_date']||'-') + '</td>' +
+      '<td><button class="btn btn-xs btn-danger" onclick="deleteCounter(\'' + cid + '\')"><i class="ti ti-trash"></i></button></td>' +
+      '</tr>';
+  });
+  html += '</tbody></table>' +
+    '<div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:14px;border-top:0.5px solid var(--border);margin-top:4px">' +
+      '<label class="form-label" style="margin:0">Record date</label>' +
+      '<input type="date" id="counter-record-date" value="' + today + '" style="padding:5px 8px">' +
+      '<button class="btn btn-sm" id="counter-save-btn" style="display:none" onclick="submitCounterValues()"><i class="ti ti-check"></i>Save</button>' +
+    '</div>';
+  el.innerHTML = html;
+}
+
+function onCounterValueInput(input) {
+  const cid = input.dataset.cid;
+  const d = (_pmsCountersData || []).find(c => c['counter_id'] === cid);
+  const changed = d && parseFloat(input.value) !== parseFloat(d['last_value'] || 0);
+  input.style.borderColor = changed ? 'var(--warning)' : 'var(--border)';
+  const anyChanged = Array.from(document.querySelectorAll('.counter-val-input')).some(inp => {
+    const dd = (_pmsCountersData || []).find(c => c['counter_id'] === inp.dataset.cid);
+    return dd && parseFloat(inp.value) !== parseFloat(dd['last_value'] || 0);
+  });
+  const btn = document.getElementById('counter-save-btn');
+  if (btn) btn.style.display = anyChanged ? 'inline-flex' : 'none';
+}
+
+async function submitCounterValues() {
+  const recordDate = document.getElementById('counter-record-date')?.value;
+  const values = [];
+  document.querySelectorAll('.counter-val-input').forEach(inp => {
+    const d = (_pmsCountersData || []).find(c => c['counter_id'] === inp.dataset.cid);
+    if (d && parseFloat(inp.value) !== parseFloat(d['last_value'] || 0)) {
+      values.push({ counterId: inp.dataset.cid, value: parseFloat(inp.value) });
+    }
+  });
+  if (values.length === 0) return;
+  showLoading('儲存中...');
+  const res = await api('saveCounterValues', {
+    vesselCode: getPmsHomeVessel(), recordDate, values,
+    operator: currentAdmin?.accountId || ''
+  });
+  hideLoading();
+  if (!res.success) { alert('儲存失敗：' + (res.message || '')); return; }
+  loadAdminCounters();
+}
+
+function openAddCounterModal() {
+  document.getElementById('counter-name').value = '';
+  document.getElementById('counter-unit').value = 'Hours';
+  document.getElementById('counter-init-val').value = '0';
+  document.getElementById('counter-err').textContent = '';
+  openModal('modal-add-counter');
+}
+
+async function submitAddCounter() {
+  const errEl = document.getElementById('counter-err');
+  const name = document.getElementById('counter-name').value.trim();
+  if (!name) { errEl.textContent = '請填寫名稱'; return; }
+  showLoading('新增中...');
+  const res = await api('addCounter', {
+    vesselCode: getPmsHomeVessel(),
+    name,
+    unit: document.getElementById('counter-unit').value.trim() || 'Hours',
+    initValue: document.getElementById('counter-init-val').value || 0,
+    operator: currentAdmin?.accountId || ''
+  });
+  hideLoading();
+  if (res.success) { closeModal('modal-add-counter'); loadAdminCounters(); }
+  else errEl.textContent = res.message || '新增失敗';
+}
+
+async function deleteCounter(counterId) {
+  if (!confirm('確定刪除此計數器？歷史紀錄不會刪除。')) return;
+  showLoading('刪除中...');
+  const res = await api('deleteCounter', { vesselCode: getPmsHomeVessel(), counterId });
+  hideLoading();
+  if (res.success) loadAdminCounters();
+  else alert('刪除失敗：' + res.message);
+}
+
+
   _adminPmsData = null;
   const vessel = getPmsVessel();
   const el = document.getElementById('admin-pms-content');
