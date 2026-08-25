@@ -109,7 +109,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
 .layout{display:flex;flex:1;overflow:hidden;height:calc(100vh - 50px)}
 .sidebar{width:200px;background:var(--bg2);border-right:0.5px solid var(--border);padding:12px 0;flex-shrink:0;overflow-y:auto}
 .nav-section{padding:0 10px;margin-bottom:8px}
-.nav-label{font-size:10px;color:var(--text3);padding:8px 8px 4px;letter-spacing:0.08em;text-transform:uppercase;font-family:var(--font-mono)}
+.nav-label{font-size:12px;color:var(--accent);padding:10px 8px 4px;letter-spacing:0.06em;text-transform:uppercase;font-family:var(--font-mono);font-weight:500}
 .nav-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--radius);cursor:pointer;font-size:13px;color:var(--text2);transition:all 0.15s}
 .nav-item:hover{background:var(--bg3);color:var(--text)}
 .nav-item.active{background:var(--bg3);color:var(--accent);font-weight:500}
@@ -413,7 +413,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="nav-item" onclick="crewShowPage('stock')" id="cni-stock"><i class="ti ti-box"></i>庫存管理</div>
       </div>
       <div class="nav-section">
-        <div class="nav-label">計畫保養</div>
+        <div class="nav-label">PMS - 計畫保養系統</div>
         <div class="nav-item" onclick="crewShowPage('pms')" id="cni-pms"><i class="ti ti-tool"></i>保養計畫</div>
         <div class="nav-item" onclick="crewShowPage('pms-hours')" id="cni-pms-hours"><i class="ti ti-gauge"></i>運轉時數</div>
         <div class="nav-item" onclick="crewShowPage('pms-log')" id="cni-pms-log"><i class="ti ti-history"></i>保養紀錄</div>
@@ -637,7 +637,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="nav-item" onclick="adminShowPage('stock-log')" id="ani-stock-log"><i class="ti ti-history"></i>異動紀錄</div>
       </div>
       <div class="nav-section">
-        <div class="nav-label">計畫保養</div>
+        <div class="nav-label">PMS - 計畫保養系統</div>
         <div class="nav-item" onclick="adminShowPage('pms')" id="ani-pms"><i class="ti ti-tool"></i>保養計畫</div>
         <div class="nav-item" onclick="adminShowPage('pms-templates')" id="ani-pms-templates"><i class="ti ti-template"></i>模板管理</div>
         <div class="nav-item" onclick="adminShowPage('pms-log')" id="ani-pms-log"><i class="ti ti-history"></i>保養紀錄</div>
