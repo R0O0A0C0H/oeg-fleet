@@ -3897,8 +3897,8 @@ function renderAdminStock() {
           const snm = encodeURIComponent(d['item_name'] || '');
           return '<button class="btn btn-xs btn-success" onclick="openStockIn(\''+sid+'\',decodeURIComponent(\''+snm+'\'),'+qty+')"><i class="ti ti-arrow-bar-down"></i>入庫</button>' +
             '<button class="btn btn-xs btn-danger" '+(isOut?'disabled style="opacity:.4"':'onclick="openStockOut(\''+sid+'\',decodeURIComponent(\''+snm+'\'),'+qty+')"')+'><i class="ti ti-arrow-bar-up"></i>出庫</button>' +
-            '<button class="btn btn-xs" onclick="openEditStock(\''+sid+'\')"><i class="ti ti-edit"></i></button>' +
-            '<button class="btn btn-xs btn-danger" onclick="deleteStockItem(\''+sid+'\')"><i class="ti ti-trash"></i></button>';
+            '<button class="btn btn-xs" onclick="openEditStock(\''+sid+'\')"><i class="ti ti-edit"></i> 編輯</button>' +
+            '<button class="btn btn-xs btn-danger" onclick="deleteStockItem(\''+sid+'\')"><i class="ti ti-trash"></i> 刪除</button>';
         })() +
       '</div></td></tr>';
   });
