@@ -18,6 +18,17 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
 [id^="pms-tpl-group-"] tr.sortable-ghost{opacity:0.4;background:var(--bg3)}
+.ctr-panel{background:var(--bg2);border:0.5px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.ctr-panel-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.ctr-panel-title{font-size:14px;font-weight:500}
+.ctr-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.ctr-stat{background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px}
+.ctr-stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.ctr-stat-value{font-size:17px;font-weight:500;font-family:var(--font-mono)}
+.ctr-stat-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.ctr-input-row{display:flex;align-items:flex-end;gap:10px}
+.ctr-diff-box{border-radius:6px;padding:8px 12px;display:flex;align-items:center;gap:14px;margin-top:10px;font-size:11px}
+.ctr-diff-value{font-size:14px;font-weight:500;font-family:var(--font-mono)}
 :root {
   --bg:       #1a2535;
   --bg2:      #212f45;
@@ -4335,56 +4346,74 @@ function renderAdminCounters() {
     return;
   }
   const today = new Date().toISOString().slice(0,10);
-  let html = '<table class="data-table" style="min-width:900px"><thead><tr>' +
-    '<th>Counter</th><th style="text-align:right">Actual counter value</th>' +
-    '<th style="text-align:right">Last counter value</th><th>Unit</th><th>Record date</th><th></th>' +
-    '</tr></thead><tbody>';
+  let html = '';
   data.forEach(d => {
     const cid = d['counter_id'];
-    html += '<tr data-cid="' + cid + '">' +
-      '<td style="font-weight:500">' + (d['name']||'-') + '</td>' +
-      '<td style="text-align:right"><input type="number" class="counter-val-input" data-cid="' + cid + '" value="' + (d['last_value']||0) + '" style="width:120px;text-align:right;font-family:monospace;padding:5px 8px;border:0.5px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text)" oninput="onCounterValueInput(this)"></td>' +
-      '<td style="text-align:right;font-family:monospace;color:var(--text3)">' + (d['last_value']||0) + '</td>' +
-      '<td style="font-size:12px">' + (d['unit']||'Hours') + '</td>' +
-      '<td style="font-size:12px;color:var(--text2)">' + (d['record_date']||'-') + '</td>' +
-      '<td><button class="btn btn-xs btn-danger" onclick="deleteCounter(\'' + cid + '\')"><i class="ti ti-trash"></i></button></td>' +
-      '</tr>';
-  });
-  html += '</tbody></table>' +
-    '<div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;padding:14px;border-top:0.5px solid var(--border);margin-top:4px">' +
-      '<label class="form-label" style="margin:0">Record date</label>' +
-      '<input type="date" id="counter-record-date" value="' + today + '" style="padding:5px 8px">' +
-      '<button class="btn btn-sm" id="counter-save-btn" style="display:none" onclick="submitCounterValues()"><i class="ti ti-check"></i>Save</button>' +
+    const lastVal = parseFloat(d['last_value'] || 0);
+    const unit = d['unit'] || 'Hours';
+    html += '<div class="ctr-panel" data-cid="' + cid + '">' +
+      '<div class="ctr-panel-head">' +
+        '<i class="ti ti-gauge" style="color:var(--text3)"></i>' +
+        '<div class="ctr-panel-title">' + (d['name']||'-') + '</div>' +
+        '<button class="btn btn-xs btn-danger" style="margin-left:auto" onclick="deleteCounter(\'' + cid + '\')"><i class="ti ti-trash"></i></button>' +
+      '</div>' +
+      '<div class="ctr-stat-row">' +
+        '<div class="ctr-stat"><div class="ctr-stat-label">目前累積數值</div>' +
+          '<div class="ctr-stat-value">' + lastVal.toLocaleString() + ' <span style="font-size:11px;color:var(--text3)">' + unit + '</span></div></div>' +
+        '<div class="ctr-stat"><div class="ctr-stat-label">上次更新日期</div>' +
+          '<div class="ctr-stat-value" style="font-size:14px">' + (d['record_date']||'—') + '</div></div>' +
+        '<div class="ctr-stat"><div class="ctr-stat-label">單位</div>' +
+          '<div class="ctr-stat-value" style="font-size:14px">' + unit + '</div></div>' +
+      '</div>' +
+      '<div class="ctr-input-row">' +
+        '<div class="form-group" style="flex:1">' +
+          '<label class="form-label">輸入新的累積數值 <span style="color:var(--danger)">*</span></label>' +
+          '<input type="number" id="ctr-val-' + cid + '" value="' + lastVal + '" data-cid="' + cid + '" data-last="' + lastVal + '"' +
+            ' style="font-size:15px;font-family:var(--font-mono);padding:7px 10px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text);width:100%"' +
+            ' oninput="onCounterValueInput(this)">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">記錄日期</label>' +
+          '<input type="date" id="ctr-date-' + cid + '" value="' + today + '" style="font-size:13px;padding:7px 10px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text)">' +
+        '</div>' +
+        '<button class="btn btn-primary" style="height:36px" data-cid="' + cid + '" onclick="submitCounterValue(this.dataset.cid)"><i class="ti ti-check"></i>更新</button>' +
+      '</div>' +
+      '<div class="ctr-diff-box" id="ctr-diff-' + cid + '" style="display:none"></div>' +
     '</div>';
+  });
   el.innerHTML = html;
 }
 
 function onCounterValueInput(input) {
   const cid = input.dataset.cid;
-  const d = (_pmsCountersData || []).find(c => c['counter_id'] === cid);
-  const changed = d && parseFloat(input.value) !== parseFloat(d['last_value'] || 0);
-  input.style.borderColor = changed ? 'var(--warning)' : 'var(--border)';
-  const anyChanged = Array.from(document.querySelectorAll('.counter-val-input')).some(inp => {
-    const dd = (_pmsCountersData || []).find(c => c['counter_id'] === inp.dataset.cid);
-    return dd && parseFloat(inp.value) !== parseFloat(dd['last_value'] || 0);
-  });
-  const btn = document.getElementById('counter-save-btn');
-  if (btn) btn.style.display = anyChanged ? 'inline-flex' : 'none';
+  const last = parseFloat(input.dataset.last || 0);
+  const val = parseFloat(input.value || 0);
+  const diff = val - last;
+  const box = document.getElementById('ctr-diff-' + cid);
+  if (!box) return;
+  if (val === last) { box.style.display = 'none'; return; }
+  const isPos = diff >= 0;
+  box.style.display = 'flex';
+  box.style.background = isPos ? 'rgba(46,204,113,0.1)' : 'rgba(231,76,60,0.1)';
+  box.style.border = '0.5px solid ' + (isPos ? 'rgba(46,204,113,0.4)' : 'rgba(231,76,60,0.4)');
+  const color = isPos ? 'var(--success)' : 'var(--danger)';
+  box.innerHTML =
+    '<div><div style="color:var(--text3)">本次變動</div><div class="ctr-diff-value" style="color:' + color + '">' + (isPos?'+ ':'- ') + Math.abs(diff).toLocaleString() + '</div></div>' +
+    '<div style="width:1px;height:26px;background:var(--border)"></div>' +
+    '<div><div style="color:var(--text3)">更新後數值</div><div class="ctr-diff-value" style="color:' + color + '">' + val.toLocaleString() + '</div></div>';
 }
 
-async function submitCounterValues() {
-  const recordDate = document.getElementById('counter-record-date')?.value;
-  const values = [];
-  document.querySelectorAll('.counter-val-input').forEach(inp => {
-    const d = (_pmsCountersData || []).find(c => c['counter_id'] === inp.dataset.cid);
-    if (d && parseFloat(inp.value) !== parseFloat(d['last_value'] || 0)) {
-      values.push({ counterId: inp.dataset.cid, value: parseFloat(inp.value) });
-    }
-  });
-  if (values.length === 0) return;
+async function submitCounterValue(counterId) {
+  const input = document.getElementById('ctr-val-' + counterId);
+  const dateInput = document.getElementById('ctr-date-' + counterId);
+  if (!input) return;
+  const val = parseFloat(input.value);
+  if (isNaN(val)) return;
   showLoading('儲存中...');
   const res = await api('saveCounterValues', {
-    vesselCode: getPmsHomeVessel(), recordDate, values,
+    vesselCode: getPmsHomeVessel(),
+    recordDate: dateInput?.value,
+    values: [{ counterId, value: val }],
     operator: currentAdmin?.accountId || ''
   });
   hideLoading();
