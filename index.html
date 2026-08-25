@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
-#pms-templates-tbody tr.sortable-ghost{opacity:0.4;background:var(--bg3)}
+[id^="pms-tpl-group-"] tr.sortable-ghost{opacity:0.4;background:var(--bg3)}
 :root {
   --bg:       #1a2535;
   --bg2:      #212f45;
@@ -4057,54 +4057,78 @@ function renderPmsTemplates() {
   const el = document.getElementById('admin-pms-templates-content');
   const data = _pmsTemplates || [];
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無模板，點選右上角新增</div>'; return; }
-  let html = '<table class="data-table" style="min-width:900px"><thead><tr>' +
-    '<th style="width:28px"></th>' +
-    '<th>模板名稱</th><th>設備</th><th>分類</th><th style="text-align:center">週期（hrs）</th>' +
-    '<th>建議物料</th><th>最後修改</th><th>操作</th></tr></thead><tbody id="pms-templates-tbody">';
+
+  // 依「設備」欄位分組，保留原本（拖曳排序後）的先後順序
+  const groupOrder = [];
+  const groups = {};
   data.forEach(d => {
-    let mats = [];
-    try { mats = JSON.parse(d['materials'] || '[]'); } catch(e) {}
-    const matStr = mats.length > 0 ? mats.map(m => m.name + ' × ' + m.qty + m.unit).join('、') : '—';
-    const tid = d['template_id'];
-    html += '<tr data-tid="' + tid + '">' +
-      '<td><i class="ti ti-grip-vertical" style="cursor:grab;color:var(--text3);touch-action:none" title="拖曳排序"></i></td>' +
-      '<td style="font-weight:500">' + (d['name']||'-') + '</td>' +
-      '<td style="font-size:12px">' + (d['equipment']||'-') + '</td>' +
-      '<td><span class="badge badge-active" style="font-size:10px">' + (d['category']||'-') + '</span></td>' +
-      '<td style="text-align:center;font-family:monospace;font-weight:600">' + (d['cycle_hrs']||'-') + '</td>' +
-      '<td style="font-size:11px;color:var(--text2)">' + matStr + '</td>' +
-      '<td style="font-size:11px;color:var(--text2)">' + (d['updated_at']?String(d['updated_at']).slice(0,10):'-') + '</td>' +
-      '<td><div style="display:flex;gap:4px">' +
-        '<button class="btn btn-xs" data-tid="' + tid + '" onclick="openEditTemplate(this.dataset.tid)"><i class="ti ti-edit"></i> 編輯</button>' +
-        '<button class="btn btn-xs btn-danger" data-tid="' + tid + '" onclick="deletePmsTemplate(this.dataset.tid)"><i class="ti ti-trash"></i> 刪除</button>' +
-      '</div></td></tr>';
+    const key = d['equipment'] || '未分類';
+    if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
+    groups[key].push(d);
   });
-  html += '</tbody></table>';
+
+  let html = '';
+  groupOrder.forEach((groupName, gi) => {
+    html += '<div style="margin-bottom:18px">' +
+      '<div style="font-size:12px;font-weight:600;color:var(--text2);padding:6px 2px;margin-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px">' +
+        '<i class="ti ti-engine" style="font-size:13px;color:var(--text3)"></i>' + groupName +
+        '<span style="font-weight:400;color:var(--text3);font-size:11px">（' + groups[groupName].length + '）</span>' +
+      '</div>' +
+      '<table class="data-table" style="min-width:900px"><thead><tr>' +
+        '<th style="width:28px"></th>' +
+        '<th>模板名稱</th><th>分類</th><th style="text-align:center">週期（hrs）</th>' +
+        '<th>建議物料</th><th>最後修改</th><th>操作</th></tr></thead>' +
+        '<tbody id="pms-tpl-group-' + gi + '" data-group="' + gi + '">';
+    groups[groupName].forEach(d => {
+      let mats = [];
+      try { mats = JSON.parse(d['materials'] || '[]'); } catch(e) {}
+      const matStr = mats.length > 0 ? mats.map(m => m.name + ' × ' + m.qty + m.unit).join('、') : '—';
+      const tid = d['template_id'];
+      html += '<tr data-tid="' + tid + '">' +
+        '<td><i class="ti ti-grip-vertical" style="cursor:grab;color:var(--text3);touch-action:none" title="拖曳排序"></i></td>' +
+        '<td style="font-weight:500">' + (d['name']||'-') + '</td>' +
+        '<td><span class="badge badge-active" style="font-size:10px">' + (d['category']||'-') + '</span></td>' +
+        '<td style="text-align:center;font-family:monospace;font-weight:600">' + (d['cycle_hrs']||'-') + '</td>' +
+        '<td style="font-size:11px;color:var(--text2)">' + matStr + '</td>' +
+        '<td style="font-size:11px;color:var(--text2)">' + (d['updated_at']?String(d['updated_at']).slice(0,10):'-') + '</td>' +
+        '<td><div style="display:flex;gap:4px">' +
+          '<button class="btn btn-xs" data-tid="' + tid + '" onclick="openEditTemplate(this.dataset.tid)"><i class="ti ti-edit"></i> 編輯</button>' +
+          '<button class="btn btn-xs btn-danger" data-tid="' + tid + '" onclick="deletePmsTemplate(this.dataset.tid)"><i class="ti ti-trash"></i> 刪除</button>' +
+        '</div></td></tr>';
+    });
+    html += '</tbody></table></div>';
+  });
+
   el.innerHTML = html;
   initTemplateSortable();
 }
 
 function initTemplateSortable() {
-  const tbody = document.getElementById('pms-templates-tbody');
-  if (!tbody || typeof Sortable === 'undefined') return;
-  if (tbody._sortableInstance) tbody._sortableInstance.destroy();
-  tbody._sortableInstance = new Sortable(tbody, {
-    handle: '.ti-grip-vertical',
-    animation: 150,
-    ghostClass: 'sortable-ghost',
-    onEnd: onTemplateReorder
+  if (typeof Sortable === 'undefined') return;
+  document.querySelectorAll('[id^="pms-tpl-group-"]').forEach(tbody => {
+    if (tbody._sortableInstance) tbody._sortableInstance.destroy();
+    tbody._sortableInstance = new Sortable(tbody, {
+      handle: '.ti-grip-vertical',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      onEnd: onTemplateReorder
+    });
   });
 }
 
 async function onTemplateReorder() {
-  const tbody = document.getElementById('pms-templates-tbody');
-  const ids = Array.from(tbody.querySelectorAll('tr')).map(tr => tr.dataset.tid);
+  // 依畫面上目前的分組與各組內順序，重組完整排序清單
+  const ids = [];
+  document.querySelectorAll('[id^="pms-tpl-group-"]').forEach(tbody => {
+    tbody.querySelectorAll('tr').forEach(tr => ids.push(tr.dataset.tid));
+  });
   const map = {};
   (_pmsTemplates || []).forEach(t => { map[t['template_id']] = t; });
   _pmsTemplates = ids.map(id => map[id]).filter(Boolean);
   const res = await api('saveTemplateOrder', { templateIds: ids });
   if (!res.success) { alert('排序儲存失敗：' + (res.message || '')); loadPmsTemplates(); }
 }
+
 
 function openAddTemplateModal() {
   _tplMaterials = [];
