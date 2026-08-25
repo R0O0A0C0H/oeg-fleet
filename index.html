@@ -410,7 +410,7 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       </div>
       <div class="nav-section">
         <div class="nav-label">庫存</div>
-        <div class="nav-item" onclick="crewShowPage('stock')" id="cni-stock"><i class="ti ti-box"></i>庫存查詢</div>
+        <div class="nav-item" onclick="crewShowPage('stock')" id="cni-stock"><i class="ti ti-box"></i>庫存管理</div>
       </div>
       <div class="nav-section">
         <div class="nav-label">報修作業</div>
@@ -3886,8 +3886,10 @@ async function loadCrewStock() {
   const el = document.getElementById('crew-stock-content');
   el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
   const res = await api('getStock', { vesselCode: currentUser.vesselCode });
-  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
+  console.log('[loadCrewStock] vesselCode:', currentUser.vesselCode, 'res:', JSON.stringify(res).slice(0,200));
+  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗：' + res.message + '</div>'; return; }
   _crewStockData = res.data || [];
+  console.log('[loadCrewStock] data length:', _crewStockData.length);
   renderCrewStock();
 }
 
