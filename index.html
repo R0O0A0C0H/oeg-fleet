@@ -15,7 +15,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <style>
+#pms-templates-tbody tr.sortable-ghost{opacity:0.4;background:var(--bg3)}
 :root {
   --bg:       #1a2535;
   --bg2:      #212f45;
@@ -4056,14 +4058,16 @@ function renderPmsTemplates() {
   const data = _pmsTemplates || [];
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無模板，點選右上角新增</div>'; return; }
   let html = '<table class="data-table" style="min-width:900px"><thead><tr>' +
+    '<th style="width:28px"></th>' +
     '<th>模板名稱</th><th>設備</th><th>分類</th><th style="text-align:center">週期（hrs）</th>' +
-    '<th>建議物料</th><th>最後修改</th><th>操作</th></tr></thead><tbody>';
+    '<th>建議物料</th><th>最後修改</th><th>操作</th></tr></thead><tbody id="pms-templates-tbody">';
   data.forEach(d => {
     let mats = [];
     try { mats = JSON.parse(d['materials'] || '[]'); } catch(e) {}
     const matStr = mats.length > 0 ? mats.map(m => m.name + ' × ' + m.qty + m.unit).join('、') : '—';
     const tid = d['template_id'];
-    html += '<tr>' +
+    html += '<tr data-tid="' + tid + '">' +
+      '<td><i class="ti ti-grip-vertical" style="cursor:grab;color:var(--text3);touch-action:none" title="拖曳排序"></i></td>' +
       '<td style="font-weight:500">' + (d['name']||'-') + '</td>' +
       '<td style="font-size:12px">' + (d['equipment']||'-') + '</td>' +
       '<td><span class="badge badge-active" style="font-size:10px">' + (d['category']||'-') + '</span></td>' +
@@ -4077,6 +4081,29 @@ function renderPmsTemplates() {
   });
   html += '</tbody></table>';
   el.innerHTML = html;
+  initTemplateSortable();
+}
+
+function initTemplateSortable() {
+  const tbody = document.getElementById('pms-templates-tbody');
+  if (!tbody || typeof Sortable === 'undefined') return;
+  if (tbody._sortableInstance) tbody._sortableInstance.destroy();
+  tbody._sortableInstance = new Sortable(tbody, {
+    handle: '.ti-grip-vertical',
+    animation: 150,
+    ghostClass: 'sortable-ghost',
+    onEnd: onTemplateReorder
+  });
+}
+
+async function onTemplateReorder() {
+  const tbody = document.getElementById('pms-templates-tbody');
+  const ids = Array.from(tbody.querySelectorAll('tr')).map(tr => tr.dataset.tid);
+  const map = {};
+  (_pmsTemplates || []).forEach(t => { map[t['template_id']] = t; });
+  _pmsTemplates = ids.map(id => map[id]).filter(Boolean);
+  const res = await api('saveTemplateOrder', { templateIds: ids });
+  if (!res.success) { alert('排序儲存失敗：' + (res.message || '')); loadPmsTemplates(); }
 }
 
 function openAddTemplateModal() {
