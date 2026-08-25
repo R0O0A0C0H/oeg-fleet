@@ -4501,7 +4501,8 @@ async function submitRecordDelivery() {
       totalDqty: totalDq,
     });
   }
-  // 顯示入庫確認 Modal
+  // 先關閉紀錄出貨 Modal，再開入庫確認 Modal
+  closeModal('modal-record-delivery');
   await openDeliveryStockModal();
 }
 
