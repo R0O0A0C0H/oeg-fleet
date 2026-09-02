@@ -4484,7 +4484,7 @@ function renderCounters() {
       (_pmsCountersIsAdmin ? '<button class="btn btn-xs btn-danger" style="position:absolute;top:6px;right:6px;padding:2px 5px" onclick="deleteCounter(\'' + cid + '\')"><i class="ti ti-trash" style="font-size:11px"></i></button>' : '') +
       '<div class="ctr-stat-label">' + (d['name']||'-') + '</div>' +
       '<div class="ctr-stat-value">' + lastVal.toLocaleString() + ' <span style="font-size:11px;color:var(--text3)">' + (d['unit']||'Hours') + '</span></div>' +
-      '<div style="font-size:10px;color:var(--text3);margin-top:3px">上次更新 ' + (d['record_date']||'—') + '</div>' +
+      '<div style="font-size:10px;color:var(--text3);margin-top:3px">上次更新時間：' + (d['updated_at']||d['record_date']||'—') + '</div>' +
     '</div>';
   });
   html += '</div></div>';
