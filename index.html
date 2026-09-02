@@ -4420,8 +4420,13 @@ function renderPmsMarquee() {
   if (list.length === 0) return '';
   const text = list.map((t, i) => (i+1) + '. ' + t).join('\n');
   const duration = Math.max(6, list.length * 4);
-  return '<div class="pms-marquee-box">' +
-    '<div class="pms-marquee-track" style="animation-duration:' + duration + 's"><span>' + text + '</span></div>' +
+  return '<div style="display:flex;align-items:stretch;gap:10px;margin-bottom:16px">' +
+    '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:8px;padding:0 14px;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap">' +
+      '<i class="ti ti-speakerphone" style="color:var(--warning)"></i>最新公告' +
+    '</div>' +
+    '<div class="pms-marquee-box" style="flex:1;margin-bottom:0">' +
+      '<div class="pms-marquee-track" style="animation-duration:' + duration + 's"><span>' + text + '</span></div>' +
+    '</div>' +
   '</div>';
 }
 
