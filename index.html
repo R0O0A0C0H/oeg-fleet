@@ -731,6 +731,8 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
             <option value="WYF">WYF 威風</option>
           </select>
           <button class="btn btn-sm" onclick="openAddStockModal()"><i class="ti ti-plus"></i>新增品項</button>
+          <button class="btn btn-sm" id="stock-edit-mode-btn" onclick="toggleStockEditMode()"><i class="ti ti-edit"></i>編輯模式</button>
+          <button class="btn btn-sm btn-primary" id="stock-save-all-btn" style="display:none" onclick="submitStockBatchUpdate()"><i class="ti ti-device-floppy"></i>全部儲存</button>
           <button class="btn btn-sm" onclick="loadAdminStock()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
@@ -768,6 +770,8 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
             <option value="VLN">VLN 英勇</option><option value="WYF">WYF 威風</option>
           </select>
           <button class="btn btn-sm btn-primary" onclick="openAddPmsPlanModal()"><i class="ti ti-plus"></i>新增保養項目</button>
+          <button class="btn btn-sm" id="plan-edit-mode-btn" onclick="togglePlanEditMode()"><i class="ti ti-edit"></i>編輯模式</button>
+          <button class="btn btn-sm btn-primary" id="plan-save-all-btn" style="display:none" onclick="submitPlanBatchUpdate()"><i class="ti ti-device-floppy"></i>全部儲存</button>
           <button class="btn btn-sm" onclick="loadAdminPms()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
@@ -776,6 +780,8 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <div class="action-bar-right">
           <button class="btn btn-sm btn-primary" onclick="openAddTemplateModal()"><i class="ti ti-plus"></i>新增模板</button>
           <button class="btn btn-sm" onclick="addPmsTemplateGroup()"><i class="ti ti-folder-plus"></i>新增群組</button>
+          <button class="btn btn-sm" id="tpl-edit-mode-btn" onclick="toggleTplEditMode()"><i class="ti ti-edit"></i>編輯模式</button>
+          <button class="btn btn-sm btn-primary" id="tpl-save-all-btn" style="display:none" onclick="submitTplBatchUpdate()"><i class="ti ti-device-floppy"></i>全部儲存</button>
           <button class="btn btn-sm" onclick="loadPmsTemplates()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
@@ -4154,6 +4160,7 @@ function renderSignedThumbs(urlsStr) {
 let _pmsTemplates = null;
 let _adminPmsData = null;
 let _pmsPlanCounters = null;
+let _planEditMode = false;
 let _crewPmsData = null;
 let _hoursLogData = null;
 let _execPlanId = '';
@@ -4179,10 +4186,12 @@ async function loadPmsTemplates() {
 }
 
 let _pmsExtraGroups = []; // 使用者按「新增群組」建立、目前尚無模板的空群組（僅存於本次瀏覽期間）
+let _tplEditMode = false;
 
 function renderPmsTemplates() {
   const el = document.getElementById('admin-pms-templates-content');
   const data = _pmsTemplates || [];
+  const editMode = !!_tplEditMode;
   if (data.length === 0 && _pmsExtraGroups.length === 0) {
     el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無模板，點選右上角新增</div>';
     return;
@@ -4200,6 +4209,8 @@ function renderPmsTemplates() {
   _pmsExtraGroups.forEach(g => {
     if (!groups[g]) { groups[g] = []; groupOrder.push(g); }
   });
+
+  const inputStyle = 'width:100%;font-size:12px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:4px;background:var(--bg3);color:var(--text)';
 
   let html = '';
   groupOrder.forEach((groupName, gi) => {
@@ -4225,6 +4236,21 @@ function renderPmsTemplates() {
       try { mats = JSON.parse(d['materials'] || '[]'); } catch(e) {}
       const matStr = mats.length > 0 ? mats.map(m => m.name + ' × ' + m.qty + m.unit).join('、') : '—';
       const tid = d['template_id'];
+
+      if (editMode) {
+        html += '<tr data-tid="' + tid + '">' +
+          '<td><i class="ti ti-grip-vertical" style="color:var(--text3);opacity:.3"></i></td>' +
+          '<td><input type="text" class="tpl-edit-field" data-field="name" data-tid="' + tid + '" value="' + (d['name']||'').replace(/"/g,'&quot;') + '" style="' + inputStyle + '"></td>' +
+          '<td><input type="text" class="tpl-edit-field" data-field="equipment" data-tid="' + tid + '" value="' + (d['equipment']||'').replace(/"/g,'&quot;') + '" style="' + inputStyle + '"></td>' +
+          '<td><input type="text" class="tpl-edit-field" data-field="category" data-tid="' + tid + '" value="' + (d['category']||'').replace(/"/g,'&quot;') + '" style="' + inputStyle + '"></td>' +
+          '<td><input type="number" class="tpl-edit-field" data-field="cycleHrs" data-tid="' + tid + '" value="' + (d['cycle_hrs']||0) + '" style="' + inputStyle + ';text-align:center"></td>' +
+          '<td style="font-size:11px;color:var(--text3)">' + matStr + '<div style="font-size:9px">（物料請用編輯視窗調整）</div></td>' +
+          '<td style="font-size:11px;color:var(--text2)">' + (d['updated_at']?String(d['updated_at']).slice(0,10):'-') + '</td>' +
+          '<td style="font-size:10px;color:var(--text3)">改完按上方「全部儲存」</td>' +
+          '</tr>';
+        return;
+      }
+
       html += '<tr data-tid="' + tid + '">' +
         '<td><i class="ti ti-grip-vertical" style="cursor:grab;color:var(--text3);touch-action:none" title="拖曳排序 / 拖曳到其他群組"></i></td>' +
         '<td style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (d['name']||'-') + '">' + (d['name']||'-') + '</td>' +
@@ -4242,7 +4268,7 @@ function renderPmsTemplates() {
   });
 
   el.innerHTML = html;
-  initTemplateSortable();
+  if (!editMode) initTemplateSortable();
 }
 
 function initTemplateSortable() {
@@ -4284,6 +4310,44 @@ async function onTemplateReorder(evt) {
 
   // 拖走後若原群組是使用者建立的空群組，畫面重繪即可自然保留（因為仍在 _pmsExtraGroups 清單中）
   renderPmsTemplates();
+}
+
+function toggleTplEditMode() {
+  _tplEditMode = !_tplEditMode;
+  document.getElementById('tpl-save-all-btn').style.display = _tplEditMode ? 'inline-flex' : 'none';
+  const btn = document.getElementById('tpl-edit-mode-btn');
+  btn.innerHTML = _tplEditMode ? '<i class="ti ti-x"></i>取消編輯' : '<i class="ti ti-edit"></i>編輯模式';
+  renderPmsTemplates();
+}
+
+async function submitTplBatchUpdate() {
+  const rows = document.querySelectorAll('#admin-pms-templates-content tr[data-tid]');
+  const changedMap = {};
+  rows.forEach(tr => {
+    const tid = tr.dataset.tid;
+    const original = (_pmsTemplates || []).find(t => t['template_id'] === tid);
+    if (!original) return;
+    tr.querySelectorAll('.tpl-edit-field').forEach(input => {
+      const field = input.dataset.field;
+      const orig = field === 'cycleHrs' ? String(parseFloat(original['cycle_hrs']||0)) :
+        field === 'name' ? original['name'] : field === 'equipment' ? original['equipment'] : original['category'];
+      if (String(input.value) !== String(orig || '')) {
+        if (!changedMap[tid]) changedMap[tid] = { templateId: tid };
+        changedMap[tid][field] = input.value;
+      }
+    });
+  });
+  const items = Object.values(changedMap);
+  if (items.length === 0) { toggleTplEditMode(); return; }
+  showLoading('儲存中...');
+  const res = await api('batchUpdateTemplate', { items });
+  hideLoading();
+  if (!res.success) { alert('儲存失敗：' + (res.message||'')); return; }
+  _tplEditMode = false;
+  document.getElementById('tpl-save-all-btn').style.display = 'none';
+  document.getElementById('tpl-edit-mode-btn').innerHTML = '<i class="ti ti-edit"></i>編輯模式';
+  _pmsTemplates = null;
+  loadPmsTemplates();
 }
 
 function addPmsTemplateGroup() {
@@ -4563,6 +4627,46 @@ async function deleteCounter(counterId) {
 }
 
 
+function togglePlanEditMode() {
+  _planEditMode = !_planEditMode;
+  document.getElementById('plan-save-all-btn').style.display = _planEditMode ? 'inline-flex' : 'none';
+  const btn = document.getElementById('plan-edit-mode-btn');
+  btn.innerHTML = _planEditMode ? '<i class="ti ti-x"></i>取消編輯' : '<i class="ti ti-edit"></i>編輯模式';
+  renderPmsPlan(document.getElementById('admin-pms-content'), _adminPmsData || [], getPmsVessel(), true);
+}
+
+async function submitPlanBatchUpdate() {
+  const cards = document.querySelectorAll('#admin-pms-content [data-planid]');
+  const changedMap = {};
+  cards.forEach(card => {
+    const planId = card.dataset.planid;
+    const original = (_adminPmsData || []).find(p => p['plan_id'] === planId);
+    if (!original) return;
+    card.querySelectorAll('.plan-edit-field').forEach(input => {
+      const field = input.dataset.field;
+      const orig = field === 'lastDoneHrs' ? String(parseFloat(original['last_done_hrs']||0)) :
+        field === 'lastDoneDate' ? (original['last_done_date']?String(original['last_done_date']).slice(0,10):'') :
+        (original['counter_id']||'');
+      if (String(input.value) !== String(orig)) {
+        if (!changedMap[planId]) changedMap[planId] = { planId };
+        changedMap[planId][field] = input.value;
+      }
+    });
+  });
+  const items = Object.values(changedMap);
+  if (items.length === 0) { togglePlanEditMode(); return; }
+  showLoading('儲存中...');
+  const vessel = getPmsVessel();
+  const res = await api('batchUpdatePmsPlan', { vesselCode: vessel, items });
+  hideLoading();
+  if (!res.success) { alert('儲存失敗：' + (res.message||'')); return; }
+  _planEditMode = false;
+  document.getElementById('plan-save-all-btn').style.display = 'none';
+  document.getElementById('plan-edit-mode-btn').innerHTML = '<i class="ti ti-edit"></i>編輯模式';
+  _adminPmsData = null;
+  loadAdminPms();
+}
+
 async function loadAdminPms() {
   _adminPmsData = null;
   const vessel = getPmsVessel();
@@ -4632,6 +4736,8 @@ function renderPmsPlan(el, planData, vessel, isAdmin) {
   }).sort((a, b) => a.remain - b.remain);
 
   let html = hrsHtml;
+  const editMode = isAdmin && !!_planEditMode;
+  const counterOpts = (_pmsPlanCounters||[]).map(c => '<option value="' + c['counter_id'] + '">' + c['name'] + '</option>').join('');
   items.forEach(item => {
     const { plan, tpl, counter, curHrs, lastHrs, cycle, remain, progress, isOverdue, isSoon, materials } = item;
     const borderColor = isOverdue ? 'var(--danger)' : isSoon ? 'var(--warning)' : 'var(--border)';
@@ -4655,6 +4761,25 @@ function renderPmsPlan(el, planData, vessel, isAdmin) {
     const execBtn = '<button class="btn btn-xs ' + (isOverdue ? 'btn-danger' : isSoon ? 'btn-warning' : 'btn-success') + '" data-planid="' + planId + '" data-tplid="' + (tpl['template_id']||'') + '" data-vessel="' + vessel + '" onclick="openExecuteMaint(this.dataset.planid,this.dataset.tplid,this.dataset.vessel)">' +
       '<i class="ti ti-player-play"></i>執行保養</button>';
     const adminBtns = isAdmin ? '<button class="btn btn-xs btn-danger" data-planid="' + planId + '" data-vessel="' + vessel + '" onclick="deletePmsPlan(this.dataset.planid,this.dataset.vessel)"><i class="ti ti-trash"></i></button>' : '';
+
+    if (editMode) {
+      const inputStyle = 'font-size:12px;padding:5px 7px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg3);color:var(--text)';
+      html += '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden" data-planid="' + planId + '">' +
+        '<div style="padding:9px 14px;display:flex;align-items:center;gap:8px;background:var(--bg2);border-bottom:0.5px solid var(--border)">' +
+          '<div style="font-size:14px;font-weight:500">' + (tpl['name'] || '未知保養項目') + '</div>' +
+          '<div style="font-size:11px;color:var(--text2)">' + (tpl['equipment']||'') + '</div>' +
+          '<div style="margin-left:auto;font-size:10px;color:var(--text3)">改完按上方「全部儲存」</div>' +
+        '</div>' +
+        '<div style="padding:10px 14px;display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px">' +
+          '<div><label class="form-label">對應計數器</label>' +
+            '<select class="plan-edit-field" data-field="counterId" data-planid="' + planId + '" style="' + inputStyle + ';width:100%"><option value="">請選擇</option>' + counterOpts + '</select></div>' +
+          '<div><label class="form-label">上次保養時數</label>' +
+            '<input type="number" class="plan-edit-field" data-field="lastDoneHrs" data-planid="' + planId + '" value="' + lastHrs + '" style="' + inputStyle + ';width:100%"></div>' +
+          '<div><label class="form-label">上次保養日期</label>' +
+            '<input type="date" class="plan-edit-field" data-field="lastDoneDate" data-planid="' + planId + '" value="' + (plan['last_done_date']?String(plan['last_done_date']).slice(0,10):'') + '" style="' + inputStyle + ';width:100%"></div>' +
+        '</div></div>';
+      return;
+    }
 
     html += '<div style="background:var(--bg2);border:0.5px solid ' + borderColor + ';border-radius:8px;margin-bottom:10px;overflow:hidden">' +
       '<div style="padding:9px 14px;display:flex;align-items:center;gap:8px;background:' + headerBg + ';border-bottom:0.5px solid ' + borderColor + '">' +
@@ -4683,6 +4808,12 @@ function renderPmsPlan(el, planData, vessel, isAdmin) {
       '</div></div>';
   });
   el.innerHTML = html;
+  if (editMode) {
+    items.forEach(item => {
+      const sel = el.querySelector('select.plan-edit-field[data-planid="' + item.plan['plan_id'] + '"]');
+      if (sel) sel.value = item.plan['counter_id'] || '';
+    });
+  }
 }
 
 // ── 新增保養計畫 Modal ────────────────────────────────────────
@@ -5066,6 +5197,7 @@ function renderPmsLog(el, data) {
 // 庫存管理
 // ============================================================
 let _adminStockData = null;
+let _stockEditMode = false;
 let _crewStockData = null;
 let _stockInItemId = '';
 let _stockOutItemId = '';
@@ -5088,6 +5220,11 @@ function getStockVessel() {
 // ── 管理端 ───────────────────────────────────────────────────
 async function loadAdminStock() {
   _adminStockData = null;
+  _stockEditMode = false;
+  const saveBtn = document.getElementById('stock-save-all-btn');
+  const editBtn = document.getElementById('stock-edit-mode-btn');
+  if (saveBtn) saveBtn.style.display = 'none';
+  if (editBtn) editBtn.innerHTML = '<i class="ti ti-edit"></i>編輯模式';
   const vessel = getStockVessel();
   const el = document.getElementById('admin-stock-content');
   el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
@@ -5102,6 +5239,7 @@ function renderAdminStock() {
   if (!_adminStockData) return;
   const vessel = getStockVessel();
   const isAdmin = true;
+  const editMode = !!_stockEditMode;
   const filterCat = document.getElementById('filter-stock-cat')?.value;
   const filterLoc = document.getElementById('filter-stock-loc')?.value;
   const filterStatus = document.getElementById('filter-stock-status')?.value;
@@ -5138,8 +5276,10 @@ function renderAdminStock() {
 
   if (data.length === 0) { el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無庫存品項</div>'; return; }
 
+  const inputStyle = 'width:100%;font-size:12px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:4px;background:var(--bg3);color:var(--text)';
+
   let html = '<table class="data-table" style="table-layout:fixed;min-width:900px">' +
-    '<colgroup><col style="min-width:160px"><col style="width:110px"><col style="width:70px"><col style="width:120px"><col style="width:70px;text-align:center"><col style="width:80px;text-align:center"><col style="width:70px"><col style="width:80px"><col style="width:150px"></colgroup>' +
+    '<colgroup><col style="min-width:160px"><col style="width:110px"><col style="width:100px"><col style="width:120px"><col style="width:70px;text-align:center"><col style="width:90px;text-align:center"><col style="width:70px"><col style="width:80px"><col style="width:150px"></colgroup>' +
     '<thead><tr>' +
     '<th>品名</th><th>料號</th><th>分類</th><th>存放地點</th>' +
     '<th style="text-align:center">目前庫存</th>' +
@@ -5159,6 +5299,23 @@ function renderAdminStock() {
         : '<span class="badge badge-approved">充足</span>';
     const qtyColor = isOut ? 'var(--danger)' : isLow ? 'var(--warning)' : 'var(--success)';
     const updated = d['last_updated'] ? String(d['last_updated']).slice(0,10) : '-';
+    const sid = d['item_id'];
+
+    if (editMode) {
+      html += '<tr data-itemid="' + sid + '">' +
+        '<td><input type="text" class="stock-edit-field" data-field="itemName" data-itemid="' + sid + '" value="' + (d['item_name']||'').replace(/"/g,'&quot;') + '" style="' + inputStyle + '"></td>' +
+        '<td><input type="text" class="stock-edit-field" data-field="partNo" data-itemid="' + sid + '" value="' + (d['part_no']||'').replace(/"/g,'&quot;') + '" style="' + inputStyle + '"></td>' +
+        '<td><input type="text" class="stock-edit-field" data-field="category" data-itemid="' + sid + '" value="' + (d['category']||'').replace(/"/g,'&quot;') + '" style="' + inputStyle + '"></td>' +
+        '<td><input type="text" class="stock-edit-field" data-field="location" data-itemid="' + sid + '" value="' + (d['location']||'').replace(/"/g,'&quot;') + '" style="' + inputStyle + '"></td>' +
+        '<td style="text-align:center;font-family:monospace;font-size:13px;color:var(--text3)">' + qty + '<div style="font-size:9px">（入/出庫調整）</div></td>' +
+        '<td><input type="number" class="stock-edit-field" data-field="qtyMin" data-itemid="' + sid + '" value="' + min + '" style="' + inputStyle + ';text-align:center"></td>' +
+        '<td>' + statusBadge + '</td>' +
+        '<td style="font-size:11px;color:var(--text2)">' + updated + '</td>' +
+        '<td style="font-size:10px;color:var(--text3)">改完按上方「全部儲存」</td>' +
+        '</tr>';
+      return;
+    }
+
     html += '<tr>' +
       '<td><div style="font-weight:500">' + (d['item_name'] || '-') + '</div></td>' +
       '<td style="font-size:11px;font-family:monospace">' + (d['part_no'] || '-') + '</td>' +
@@ -5170,7 +5327,6 @@ function renderAdminStock() {
       '<td style="font-size:11px;color:var(--text2)">' + updated + '</td>' +
       '<td><div style="display:flex;gap:4px;flex-wrap:wrap">' +
         (() => {
-          const sid = d['item_id'];
           const snm = encodeURIComponent(d['item_name'] || '');
           return '<button class="btn btn-xs btn-success" onclick="openStockIn(\''+sid+'\',decodeURIComponent(\''+snm+'\'),'+qty+')"><i class="ti ti-arrow-bar-down"></i>入庫</button>' +
             '<button class="btn btn-xs btn-danger" '+(isOut?'disabled style="opacity:.4"':'onclick="openStockOut(\''+sid+'\',decodeURIComponent(\''+snm+'\'),'+qty+')"')+'><i class="ti ti-arrow-bar-up"></i>出庫</button>' +
@@ -5181,6 +5337,44 @@ function renderAdminStock() {
   });
   html += '</tbody></table>';
   el.innerHTML = html;
+}
+
+function toggleStockEditMode() {
+  _stockEditMode = !_stockEditMode;
+  document.getElementById('stock-save-all-btn').style.display = _stockEditMode ? 'inline-flex' : 'none';
+  const btn = document.getElementById('stock-edit-mode-btn');
+  btn.innerHTML = _stockEditMode ? '<i class="ti ti-x"></i>取消編輯' : '<i class="ti ti-edit"></i>編輯模式';
+  renderAdminStock();
+}
+
+async function submitStockBatchUpdate() {
+  const rows = document.querySelectorAll('#admin-stock-content tr[data-itemid]');
+  const changedMap = {};
+  rows.forEach(tr => {
+    const itemId = tr.dataset.itemid;
+    const original = (_adminStockData || []).find(d => d['item_id'] === itemId);
+    if (!original) return;
+    tr.querySelectorAll('.stock-edit-field').forEach(input => {
+      const field = input.dataset.field;
+      const orig = field === 'qtyMin' ? String(parseFloat(original['qty_min']||0)) :
+        (field === 'itemName' ? original['item_name'] : field === 'partNo' ? original['part_no'] :
+         field === 'category' ? original['category'] : original['location']) || '';
+      if (String(input.value) !== String(orig)) {
+        if (!changedMap[itemId]) changedMap[itemId] = { itemId };
+        changedMap[itemId][field] = input.value;
+      }
+    });
+  });
+  const items = Object.values(changedMap);
+  if (items.length === 0) { toggleStockEditMode(); return; }
+  showLoading('儲存中...');
+  const res = await api('batchUpdateStockItem', { vesselCode: getStockVessel(), items });
+  hideLoading();
+  if (!res.success) { alert('儲存失敗：' + (res.message||'')); return; }
+  _stockEditMode = false;
+  document.getElementById('stock-save-all-btn').style.display = 'none';
+  document.getElementById('stock-edit-mode-btn').innerHTML = '<i class="ti ti-edit"></i>編輯模式';
+  loadAdminStock();
 }
 
 // ── 船員端 ───────────────────────────────────────────────────
