@@ -4210,7 +4210,12 @@ function renderPmsTemplates() {
         '<span style="font-weight:400;color:var(--text3);font-size:11px">（' + groups[groupName].length + '）</span>' +
         (groups[groupName].length === 0 ? '<button class="btn btn-xs" style="margin-left:auto" onclick="removePmsTemplateGroup(\'' + safeGroup + '\')"><i class="ti ti-x"></i> 移除空群組</button>' : '') +
       '</div>' +
-      '<table class="data-table" style="min-width:900px"><thead><tr>' +
+      '<table class="data-table" style="min-width:900px;table-layout:fixed;width:100%">' +
+        '<colgroup>' +
+          '<col style="width:28px"><col style="width:20%"><col style="width:14%"><col style="width:10%">' +
+          '<col style="width:10%"><col style="width:22%"><col style="width:9%"><col style="width:15%">' +
+        '</colgroup>' +
+        '<thead><tr>' +
         '<th style="width:28px"></th>' +
         '<th>模板名稱</th><th>設備</th><th>分類</th><th style="text-align:center">週期（hrs）</th>' +
         '<th>建議物料</th><th>最後修改</th><th>操作</th></tr></thead>' +
@@ -4222,11 +4227,11 @@ function renderPmsTemplates() {
       const tid = d['template_id'];
       html += '<tr data-tid="' + tid + '">' +
         '<td><i class="ti ti-grip-vertical" style="cursor:grab;color:var(--text3);touch-action:none" title="拖曳排序 / 拖曳到其他群組"></i></td>' +
-        '<td style="font-weight:500">' + (d['name']||'-') + '</td>' +
-        '<td style="font-size:12px">' + (d['equipment']||'-') + '</td>' +
+        '<td style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (d['name']||'-') + '">' + (d['name']||'-') + '</td>' +
+        '<td style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (d['equipment']||'-') + '">' + (d['equipment']||'-') + '</td>' +
         '<td><span class="badge badge-active" style="font-size:10px">' + (d['category']||'-') + '</span></td>' +
         '<td style="text-align:center;font-family:monospace;font-weight:600">' + (d['cycle_hrs']||'-') + '</td>' +
-        '<td style="font-size:11px;color:var(--text2)">' + matStr + '</td>' +
+        '<td style="font-size:11px;color:var(--text2);white-space:normal;word-break:break-word">' + matStr + '</td>' +
         '<td style="font-size:11px;color:var(--text2)">' + (d['updated_at']?String(d['updated_at']).slice(0,10):'-') + '</td>' +
         '<td><div style="display:flex;gap:4px">' +
           '<button class="btn btn-xs" data-tid="' + tid + '" onclick="openEditTemplate(this.dataset.tid)"><i class="ti ti-edit"></i> 編輯</button>' +
