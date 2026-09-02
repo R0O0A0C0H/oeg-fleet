@@ -29,6 +29,12 @@
 .ctr-input-row{display:flex;align-items:flex-end;gap:10px}
 .ctr-diff-box{border-radius:6px;padding:8px 12px;display:flex;align-items:center;gap:14px;margin-top:10px;font-size:11px}
 .ctr-diff-value{font-size:14px;font-weight:500;font-family:var(--font-mono)}
+.ctr-overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.ctr-overview-item{background:var(--bg2);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px}
+.ctr-overview-name{font-size:11px;color:var(--text3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctr-overview-value{font-size:16px;font-weight:500;font-family:var(--font-mono)}
+.ctr-form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media (max-width:900px){.ctr-form-grid{grid-template-columns:repeat(2,1fr)}}
 :root {
   --bg:       #1a2535;
   --bg2:      #212f45;
@@ -457,9 +463,9 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         </div>
       </div>
       <div id="cab-pms-hours" class="action-bar" style="display:none">
-        <div class="action-bar-left"><div class="action-bar-title">運轉時數</div><div class="action-bar-sub">記錄與查詢運轉時數</div></div>
+        <div class="action-bar-left"><div class="action-bar-title">運轉時數</div><div class="action-bar-sub">各設備累積運轉時數</div></div>
         <div class="action-bar-right">
-          <button class="btn btn-sm" onclick="loadHoursLog()"><i class="ti ti-refresh"></i>重新整理</button>
+          <button class="btn btn-sm" onclick="loadCrewCounters()"><i class="ti ti-refresh"></i>重新整理</button>
         </div>
       </div>
       <div id="cab-pms-log" class="action-bar" style="display:none">
@@ -550,9 +556,9 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           <div id="crew-pms-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
         </div>
 
-        <!-- 運轉時數 -->
+        <!-- 運轉時數（與管理員 PMS 主頁共用相同計數器 UI） -->
         <div class="page" id="crew-page-pms-hours">
-          <div id="crew-hours-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
+          <div id="crew-counters-content"><div class="text-dim text-sm" style="padding:10px">載入中...</div></div>
         </div>
 
         <!-- 保養紀錄（船員端） -->
@@ -1963,7 +1969,7 @@ function crewShowPage(name) {
   if (name === 'delivery-log') { _crewDeliveryLogData = null; loadCrewDeliveryLog(); }
   if (name === 'stock') { loadCrewStock(); }
   if (name === 'pms') { loadCrewPms(); }
-  if (name === 'pms-hours') { loadHoursLog(); }
+  if (name === 'pms-hours') { loadCrewCounters(); }
   if (name === 'pms-log') { loadCrewPmsLog(); }
   if (name === 'repair-history') { _repairHistoryData = null; _repairHistoryMonth = null; loadRepairHistory(); }
   if (name === 'repair-new') {
@@ -4320,105 +4326,119 @@ function getPmsVessel() {
 }
 
 // ============================================================
-// PMS 主頁（計數器）
+// PMS 主頁（計數器）— 船員端 / 管理員端共用
 // ============================================================
 let _pmsCountersData = null;
+let _pmsCountersVessel = null;
+let _pmsCountersContainer = null;
+let _pmsCountersIsAdmin = false;
 
 function getPmsHomeVessel() {
   return document.getElementById('filter-pms-home-vessel')?.value || 'VLK';
 }
 
 async function loadAdminCounters() {
-  const vessel = getPmsHomeVessel();
-  const el = document.getElementById('admin-counters-content');
-  el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
-  const res = await api('getCounters', { vesselCode: vessel });
-  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
-  _pmsCountersData = res.data || [];
-  renderAdminCounters();
+  await loadCounters(getPmsHomeVessel(), 'admin-counters-content', true);
 }
 
-function renderAdminCounters() {
-  const el = document.getElementById('admin-counters-content');
+async function loadCrewCounters() {
+  await loadCounters(currentUser.vesselCode, 'crew-counters-content', false);
+}
+
+async function loadCounters(vesselCode, containerId, isAdmin) {
+  _pmsCountersVessel = vesselCode;
+  _pmsCountersContainer = containerId;
+  _pmsCountersIsAdmin = isAdmin;
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
+  const res = await api('getCounters', { vesselCode });
+  if (!res.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
+  _pmsCountersData = res.data || [];
+  renderCounters();
+}
+
+function renderCounters() {
+  const el = document.getElementById(_pmsCountersContainer);
+  if (!el) return;
   const data = _pmsCountersData || [];
   if (data.length === 0) {
-    el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無計數器，點選右上角「新增計數器」</div>';
+    el.innerHTML = '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無計數器' + (_pmsCountersIsAdmin ? '，點選右上角「新增計數器」' : '') + '</div>';
     return;
   }
   const today = new Date().toISOString().slice(0,10);
-  let html = '';
+
+  let html = '<div style="font-size:13px;font-weight:500;margin-bottom:2px">登入今日時數</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">如有格子未填入將無法送出</div>' +
+    '<div class="ctr-panel">' +
+    '<div class="ctr-form-grid">';
   data.forEach(d => {
     const cid = d['counter_id'];
     const lastVal = parseFloat(d['last_value'] || 0);
-    const unit = d['unit'] || 'Hours';
-    html += '<div class="ctr-panel" data-cid="' + cid + '">' +
-      '<div class="ctr-panel-head">' +
-        '<i class="ti ti-gauge" style="color:var(--text3)"></i>' +
-        '<div class="ctr-panel-title">' + (d['name']||'-') + '</div>' +
-        '<button class="btn btn-xs btn-danger" style="margin-left:auto" onclick="deleteCounter(\'' + cid + '\')"><i class="ti ti-trash"></i></button>' +
-      '</div>' +
-      '<div class="ctr-stat-row">' +
-        '<div class="ctr-stat"><div class="ctr-stat-label">目前累積數值</div>' +
-          '<div class="ctr-stat-value">' + lastVal.toLocaleString() + ' <span style="font-size:11px;color:var(--text3)">' + unit + '</span></div></div>' +
-        '<div class="ctr-stat"><div class="ctr-stat-label">上次更新日期</div>' +
-          '<div class="ctr-stat-value" style="font-size:14px">' + (d['record_date']||'—') + '</div></div>' +
-        '<div class="ctr-stat"><div class="ctr-stat-label">單位</div>' +
-          '<div class="ctr-stat-value" style="font-size:14px">' + unit + '</div></div>' +
-      '</div>' +
-      '<div class="ctr-input-row">' +
-        '<div class="form-group" style="flex:1">' +
-          '<label class="form-label">輸入新的累積數值 <span style="color:var(--danger)">*</span></label>' +
-          '<input type="number" id="ctr-val-' + cid + '" value="' + lastVal + '" data-cid="' + cid + '" data-last="' + lastVal + '"' +
-            ' style="font-size:15px;font-family:var(--font-mono);padding:7px 10px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text);width:100%"' +
-            ' oninput="onCounterValueInput(this)">' +
-        '</div>' +
-        '<div class="form-group">' +
-          '<label class="form-label">記錄日期</label>' +
-          '<input type="date" id="ctr-date-' + cid + '" value="' + today + '" style="font-size:13px;padding:7px 10px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text)">' +
-        '</div>' +
-        '<button class="btn btn-primary" style="height:36px" data-cid="' + cid + '" onclick="submitCounterValue(this.dataset.cid)"><i class="ti ti-check"></i>更新</button>' +
-      '</div>' +
-      '<div class="ctr-diff-box" id="ctr-diff-' + cid + '" style="display:none"></div>' +
+    html += '<div class="form-group">' +
+      '<label class="form-label">' + (d['name']||'-') + ' <span style="color:var(--danger)">*</span></label>' +
+      '<input type="number" class="ctr-input-field" id="ctr-val-' + cid + '" data-cid="' + cid + '" data-last="' + lastVal + '"' +
+        ' style="font-size:14px;font-family:var(--font-mono);padding:7px 10px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text);width:100%"' +
+        ' oninput="onCounterFormInput()">' +
     '</div>';
   });
+  html += '</div>' +
+    '<div style="display:flex;align-items:flex-end;gap:10px;margin-top:14px">' +
+      '<div class="err-msg" id="ctr-form-err" style="flex:1;margin:0"></div>' +
+      '<div class="form-group" style="margin:0">' +
+        '<label class="form-label">記錄日期</label>' +
+        '<input type="date" id="ctr-form-date" value="' + today + '" style="padding:7px 10px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg3);color:var(--text)">' +
+      '</div>' +
+      '<button class="btn btn-primary" style="height:36px" onclick="submitCounterForm()"><i class="ti ti-send"></i>送出</button>' +
+    '</div>' +
+  '</div>';
+
+  html += '<div style="font-size:13px;font-weight:500;margin:20px 0 10px">目前運轉時數</div>' +
+    '<div class="ctr-panel"><div class="ctr-form-grid">';
+  data.forEach(d => {
+    const cid = d['counter_id'];
+    const lastVal = parseFloat(d['last_value'] || 0);
+    html += '<div class="ctr-stat" style="position:relative">' +
+      (_pmsCountersIsAdmin ? '<button class="btn btn-xs btn-danger" style="position:absolute;top:6px;right:6px;padding:2px 5px" onclick="deleteCounter(\'' + cid + '\')"><i class="ti ti-trash" style="font-size:11px"></i></button>' : '') +
+      '<div class="ctr-stat-label">' + (d['name']||'-') + '</div>' +
+      '<div class="ctr-stat-value">' + lastVal.toLocaleString() + ' <span style="font-size:11px;color:var(--text3)">' + (d['unit']||'Hours') + '</span></div>' +
+      '<div style="font-size:10px;color:var(--text3);margin-top:3px">上次更新 ' + (d['record_date']||'—') + '</div>' +
+    '</div>';
+  });
+  html += '</div></div>';
+
   el.innerHTML = html;
 }
 
-function onCounterValueInput(input) {
-  const cid = input.dataset.cid;
-  const last = parseFloat(input.dataset.last || 0);
-  const val = parseFloat(input.value || 0);
-  const diff = val - last;
-  const box = document.getElementById('ctr-diff-' + cid);
-  if (!box) return;
-  if (val === last) { box.style.display = 'none'; return; }
-  const isPos = diff >= 0;
-  box.style.display = 'flex';
-  box.style.background = isPos ? 'rgba(46,204,113,0.1)' : 'rgba(231,76,60,0.1)';
-  box.style.border = '0.5px solid ' + (isPos ? 'rgba(46,204,113,0.4)' : 'rgba(231,76,60,0.4)');
-  const color = isPos ? 'var(--success)' : 'var(--danger)';
-  box.innerHTML =
-    '<div><div style="color:var(--text3)">本次變動</div><div class="ctr-diff-value" style="color:' + color + '">' + (isPos?'+ ':'- ') + Math.abs(diff).toLocaleString() + '</div></div>' +
-    '<div style="width:1px;height:26px;background:var(--border)"></div>' +
-    '<div><div style="color:var(--text3)">更新後數值</div><div class="ctr-diff-value" style="color:' + color + '">' + val.toLocaleString() + '</div></div>';
+function onCounterFormInput() {
+  document.getElementById('ctr-form-err').textContent = '';
 }
 
-async function submitCounterValue(counterId) {
-  const input = document.getElementById('ctr-val-' + counterId);
-  const dateInput = document.getElementById('ctr-date-' + counterId);
-  if (!input) return;
-  const val = parseFloat(input.value);
-  if (isNaN(val)) return;
+async function submitCounterForm() {
+  const errEl = document.getElementById('ctr-form-err');
+  errEl.textContent = '';
+  const inputs = document.querySelectorAll('.ctr-input-field');
+  const values = [];
+  for (const input of inputs) {
+    if (input.value === '' || isNaN(parseFloat(input.value))) {
+      errEl.textContent = '請填寫所有欄位才能送出';
+      input.style.borderColor = 'var(--danger)';
+      return;
+    }
+    input.style.borderColor = 'var(--border2)';
+    values.push({ counterId: input.dataset.cid, value: parseFloat(input.value) });
+  }
+  const dateInput = document.getElementById('ctr-form-date');
   showLoading('儲存中...');
   const res = await api('saveCounterValues', {
-    vesselCode: getPmsHomeVessel(),
+    vesselCode: _pmsCountersVessel,
     recordDate: dateInput?.value,
-    values: [{ counterId, value: val }],
-    operator: currentAdmin?.accountId || ''
+    values,
+    operator: (currentAdmin?.accountId || currentUser?.accountId || '')
   });
   hideLoading();
-  if (!res.success) { alert('儲存失敗：' + (res.message || '')); return; }
-  loadAdminCounters();
+  if (!res.success) { errEl.textContent = '儲存失敗：' + (res.message || ''); return; }
+  loadCounters(_pmsCountersVessel, _pmsCountersContainer, _pmsCountersIsAdmin);
 }
 
 function openAddCounterModal() {
@@ -4435,23 +4455,23 @@ async function submitAddCounter() {
   if (!name) { errEl.textContent = '請填寫名稱'; return; }
   showLoading('新增中...');
   const res = await api('addCounter', {
-    vesselCode: getPmsHomeVessel(),
+    vesselCode: _pmsCountersVessel,
     name,
     unit: document.getElementById('counter-unit').value.trim() || 'Hours',
     initValue: document.getElementById('counter-init-val').value || 0,
     operator: currentAdmin?.accountId || ''
   });
   hideLoading();
-  if (res.success) { closeModal('modal-add-counter'); loadAdminCounters(); }
+  if (res.success) { closeModal('modal-add-counter'); loadCounters(_pmsCountersVessel, _pmsCountersContainer, _pmsCountersIsAdmin); }
   else errEl.textContent = res.message || '新增失敗';
 }
 
 async function deleteCounter(counterId) {
   if (!confirm('確定刪除此計數器？歷史紀錄不會刪除。')) return;
   showLoading('刪除中...');
-  const res = await api('deleteCounter', { vesselCode: getPmsHomeVessel(), counterId });
+  const res = await api('deleteCounter', { vesselCode: _pmsCountersVessel, counterId });
   hideLoading();
-  if (res.success) loadAdminCounters();
+  if (res.success) loadCounters(_pmsCountersVessel, _pmsCountersContainer, _pmsCountersIsAdmin);
   else alert('刪除失敗：' + res.message);
 }
 
