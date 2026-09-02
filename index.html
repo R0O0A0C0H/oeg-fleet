@@ -993,14 +993,15 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
           <!-- PMS 主頁公告跑馬燈 -->
           <div class="card">
             <div class="card-title"><i class="ti ti-speakerphone"></i>PMS 主頁公告</div>
-            <div class="text-dim text-xs" style="margin-bottom:10px">顯示在 PMS 主頁上方的跑馬燈公告，船員與管理員都看得到。留空則不顯示。</div>
-            <div class="form-group" style="margin-bottom:0">
-              <label class="form-label">公告內容</label>
+            <div class="text-dim text-xs" style="margin-bottom:10px">顯示在 PMS 主頁上方的跑馬燈公告，船員與管理員都看得到，可新增多筆並輪播顯示。</div>
+            <div class="form-group" style="margin-bottom:10px">
+              <label class="form-label">最新公告</label>
               <div style="display:flex;gap:8px">
                 <input type="text" id="pms-announcement-input" placeholder="輸入要顯示的公告文字">
-                <button class="btn btn-sm btn-primary" onclick="savePmsAnnouncement()"><i class="ti ti-check"></i>更新</button>
+                <button class="btn btn-sm btn-primary" onclick="addPmsAnnouncement()"><i class="ti ti-plus"></i>新增</button>
               </div>
             </div>
+            <div id="pms-announcement-list"></div>
           </div>
         </div>
 
@@ -3199,14 +3200,44 @@ function initMaintenanceStatus() {
   _maintenanceOn = localStorage.getItem('oeg_maintenance') === 'on';
   renderMaintenanceToggle();
   const annInput = document.getElementById('pms-announcement-input');
-  if (annInput) annInput.value = settings.pms_announcement || '';
+  if (annInput) annInput.value = '';
+  renderPmsAnnouncementList();
 }
 
-async function savePmsAnnouncement() {
-  const text = document.getElementById('pms-announcement-input').value.trim();
-  await api('saveSettings', { settings: { ...settings, pms_announcement: text } });
-  settings.pms_announcement = text;
-  alert('公告已更新');
+function renderPmsAnnouncementList() {
+  const el = document.getElementById('pms-announcement-list');
+  if (!el) return;
+  const list = Array.isArray(settings.pms_announcement) ? settings.pms_announcement : (settings.pms_announcement ? [settings.pms_announcement] : []);
+  if (list.length === 0) {
+    el.innerHTML = '<div class="text-dim text-sm" style="padding:8px 0">尚無公告</div>';
+    return;
+  }
+  el.innerHTML = list.map((text, i) =>
+    '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border)">' +
+      '<div style="flex:1;font-size:13px">' + (i+1) + '. ' + text + '</div>' +
+      '<button class="btn btn-xs btn-danger" data-idx="' + i + '" onclick="deletePmsAnnouncement(this.dataset.idx)"><i class="ti ti-trash"></i></button>' +
+    '</div>'
+  ).join('');
+}
+
+async function addPmsAnnouncement() {
+  const input = document.getElementById('pms-announcement-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const list = Array.isArray(settings.pms_announcement) ? settings.pms_announcement.slice() : (settings.pms_announcement ? [settings.pms_announcement] : []);
+  list.push(text);
+  await api('saveSettings', { settings: { ...settings, pms_announcement: list } });
+  settings.pms_announcement = list;
+  input.value = '';
+  renderPmsAnnouncementList();
+}
+
+async function deletePmsAnnouncement(idx) {
+  const list = Array.isArray(settings.pms_announcement) ? settings.pms_announcement.slice() : [];
+  list.splice(parseInt(idx), 1);
+  await api('saveSettings', { settings: { ...settings, pms_announcement: list } });
+  settings.pms_announcement = list;
+  renderPmsAnnouncementList();
 }
 
 function renderMaintenanceToggle() {
@@ -4384,10 +4415,13 @@ async function loadCounters(vesselCode, containerId, isAdmin) {
 }
 
 function renderPmsMarquee() {
-  const text = (settings && settings.pms_announcement) ? settings.pms_announcement.trim() : '';
-  if (!text) return '';
+  const raw = settings && settings.pms_announcement;
+  const list = Array.isArray(raw) ? raw.filter(Boolean) : (raw ? [raw] : []);
+  if (list.length === 0) return '';
+  const text = list.map((t, i) => (i+1) + '. ' + t).join('\n');
+  const duration = Math.max(6, list.length * 4);
   return '<div class="pms-marquee-box">' +
-    '<div class="pms-marquee-track"><span>' + text + '</span></div>' +
+    '<div class="pms-marquee-track" style="animation-duration:' + duration + 's"><span>' + text + '</span></div>' +
   '</div>';
 }
 
