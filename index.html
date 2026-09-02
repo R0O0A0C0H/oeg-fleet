@@ -1185,6 +1185,13 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
       </select>
     </div>
     <div id="plan-template-preview" style="display:none;background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12px"></div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">對應計數器 <span class="req">*</span></label>
+      <select id="plan-counter-sel" style="width:100%">
+        <option value="">請選擇計數器</option>
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">此保養項目的進度將依此計數器的數值計算</div>
+    </div>
     <div class="form-group">
       <label class="form-label">上次保養時數（起始值）</label>
       <input type="number" id="plan-last-hrs" min="0" placeholder="例：15897">
@@ -4146,6 +4153,7 @@ function renderSignedThumbs(urlsStr) {
 // ============================================================
 let _pmsTemplates = null;
 let _adminPmsData = null;
+let _pmsPlanCounters = null;
 let _crewPmsData = null;
 let _hoursLogData = null;
 let _execPlanId = '';
@@ -4556,14 +4564,13 @@ async function loadAdminPms() {
   const el = document.getElementById('admin-pms-content');
   el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
   if (!_pmsTemplates) { const tr = await api('getPmsTemplates', {}); _pmsTemplates = tr.data || []; }
-  const [planRes, hrsRes] = await Promise.all([
+  const [planRes, ctrRes] = await Promise.all([
     api('getPmsPlan', { vesselCode: vessel }),
-    api('getHoursLog', { vesselCode: vessel })
+    api('getCounters', { vesselCode: vessel })
   ]);
   if (!planRes.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
   _adminPmsData = planRes.data || [];
-  const hoursData = hrsRes.data || [];
-  _currentHours = hoursData.length > 0 ? parseFloat(hoursData[0]['hours_total'] || 0) : 0;
+  _pmsPlanCounters = ctrRes.success ? (ctrRes.data || []) : [];
   renderPmsPlan(el, _adminPmsData, vessel, true);
 }
 
@@ -4573,35 +4580,40 @@ async function loadCrewPms() {
   const el = document.getElementById('crew-pms-content');
   el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入中...</div>';
   if (!_pmsTemplates) { const tr = await api('getPmsTemplates', {}); _pmsTemplates = tr.data || []; }
-  const [planRes, hrsRes] = await Promise.all([
+  const [planRes, ctrRes] = await Promise.all([
     api('getPmsPlan', { vesselCode: vessel }),
-    api('getHoursLog', { vesselCode: vessel })
+    api('getCounters', { vesselCode: vessel })
   ]);
   if (!planRes.success) { el.innerHTML = '<div class="text-dim text-sm" style="padding:10px">載入失敗</div>'; return; }
   _crewPmsData = planRes.data || [];
-  const hoursData = hrsRes.data || [];
-  _currentHours = hoursData.length > 0 ? parseFloat(hoursData[0]['hours_total'] || 0) : 0;
+  _pmsPlanCounters = ctrRes.success ? (ctrRes.data || []) : [];
   renderPmsPlan(el, _crewPmsData, vessel, false);
 }
 
+function getPlanCounterValue(counterId) {
+  const c = (_pmsPlanCounters || []).find(x => x['counter_id'] === counterId);
+  return c ? parseFloat(c['last_value'] || 0) : 0;
+}
+
 function renderPmsPlan(el, planData, vessel, isAdmin) {
-  const curHrs = _currentHours;
-  // 顯示目前時數橫幅
-  let hrsHtml = '<div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:16px;margin-bottom:12px">' +
-    '<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">目前累積時數</div>' +
-    '<div style="font-size:20px;font-weight:500;font-family:monospace;color:var(--text)">' + (curHrs > 0 ? curHrs.toLocaleString() : '—') + ' hrs</div></div>' +
-    '<div style="margin-left:auto;display:flex;gap:8px">' +
-    '<button class="btn btn-sm btn-primary" data-vessel="' + vessel + '" onclick="openUpdateHoursModal(this.dataset.vessel)"><i class="ti ti-gauge"></i>更新時數</button>' +
-    (isAdmin ? '' : '') + '</div></div>';
+  // 顯示所有計數器目前數值橫幅（取代舊版單一總時數）
+  let hrsHtml = '<div class="ctr-overview-grid" style="margin-bottom:14px">' +
+    (_pmsPlanCounters || []).map(c =>
+      '<div class="ctr-overview-item"><div class="ctr-overview-name">' + (c['name']||'-') + '</div>' +
+      '<div class="ctr-overview-value">' + parseFloat(c['last_value']||0).toLocaleString() + ' <span style="font-size:11px;color:var(--text3)">' + (c['unit']||'Hours') + '</span></div></div>'
+    ).join('') +
+  '</div>';
 
   if (planData.length === 0) {
     el.innerHTML = hrsHtml + '<div class="text-dim text-sm" style="padding:20px;text-align:center">尚無保養計畫' + (isAdmin ? '，點選右上角新增' : '') + '</div>';
     return;
   }
 
-  // 合併模板資料
+  // 合併模板資料，每個保養項目依其綁定的計數器來計算進度
   const items = planData.map(plan => {
     const tpl = (_pmsTemplates||[]).find(t => t['template_id'] === plan['template_id']) || {};
+    const counter = (_pmsPlanCounters||[]).find(c => c['counter_id'] === plan['counter_id']);
+    const curHrs = counter ? parseFloat(counter['last_value'] || 0) : 0;
     const lastHrs = parseFloat(plan['last_done_hrs'] || 0);
     const cycle = parseFloat(tpl['cycle_hrs'] || 500);
     const nextHrs = lastHrs + cycle;
@@ -4611,12 +4623,12 @@ function renderPmsPlan(el, planData, vessel, isAdmin) {
     const isSoon = !isOverdue && remain < cycle * 0.2;
     let materials = [];
     try { materials = JSON.parse(tpl['materials'] || '[]'); } catch(e) {}
-    return { plan, tpl, lastHrs, cycle, nextHrs, remain, progress, isOverdue, isSoon, materials };
+    return { plan, tpl, counter, curHrs, lastHrs, cycle, nextHrs, remain, progress, isOverdue, isSoon, materials };
   }).sort((a, b) => a.remain - b.remain);
 
   let html = hrsHtml;
   items.forEach(item => {
-    const { plan, tpl, lastHrs, cycle, remain, progress, isOverdue, isSoon, materials } = item;
+    const { plan, tpl, counter, curHrs, lastHrs, cycle, remain, progress, isOverdue, isSoon, materials } = item;
     const borderColor = isOverdue ? 'var(--danger)' : isSoon ? 'var(--warning)' : 'var(--border)';
     const headerBg = isOverdue ? 'var(--bg3)' : isSoon ? 'var(--bg3)' : 'var(--bg2)';
     const badge = isOverdue
@@ -4645,6 +4657,9 @@ function renderPmsPlan(el, planData, vessel, isAdmin) {
         '<div style="font-size:14px;font-weight:500">' + (tpl['name'] || '未知保養項目') + '</div>' +
         '<div style="font-size:11px;color:var(--text2)">' + (tpl['equipment']||'') + '</div>' +
         (tpl['category'] ? '<span class="badge badge-active" style="font-size:10px">' + tpl['category'] + '</span>' : '') +
+        '<div style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:4px">' +
+          '<i class="ti ti-gauge" style="font-size:12px"></i>' + (counter ? counter['name'] : '<span style="color:var(--danger)">未綁定計數器</span>') +
+        '</div>' +
         '<div style="margin-left:auto;display:flex;gap:6px">' + execBtn + adminBtns + '</div>' +
       '</div>' +
       '<div style="padding:10px 14px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;align-items:center">' +
@@ -4668,9 +4683,15 @@ function renderPmsPlan(el, planData, vessel, isAdmin) {
 // ── 新增保養計畫 Modal ────────────────────────────────────────
 async function openAddPmsPlanModal() {
   if (!_pmsTemplates) { const r = await api('getPmsTemplates', {}); _pmsTemplates = r.data || []; }
+  const vessel = getPmsVessel();
+  const cRes = await api('getCounters', { vesselCode: vessel });
+  const counters = cRes.success ? (cRes.data || []) : [];
   const sel = document.getElementById('plan-template-sel');
   sel.innerHTML = '<option value="">請選擇模板</option>' +
     (_pmsTemplates||[]).map(t => '<option value="' + t['template_id'] + '">' + t['name'] + ' (' + t['cycle_hrs'] + ' hrs)</option>').join('');
+  const csel = document.getElementById('plan-counter-sel');
+  csel.innerHTML = '<option value="">請選擇計數器</option>' +
+    counters.map(c => '<option value="' + c['counter_id'] + '">' + c['name'] + '（目前 ' + parseFloat(c['last_value']||0).toLocaleString() + ' ' + (c['unit']||'Hours') + '）</option>').join('');
   document.getElementById('plan-last-hrs').value = '';
   document.getElementById('plan-last-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('plan-template-preview').style.display = 'none';
@@ -4697,11 +4718,13 @@ async function submitAddPmsPlan() {
   errEl.textContent = '';
   const tid = document.getElementById('plan-template-sel').value;
   if (!tid) { errEl.textContent = '請選擇模板'; return; }
+  const cid = document.getElementById('plan-counter-sel').value;
+  if (!cid) { errEl.textContent = '請選擇對應計數器'; return; }
   const vessel = getPmsVessel();
   showLoading('新增中...');
   const planId = vessel + '-PLAN-' + Date.now();
   const res = await api('savePmsPlan', {
-    vesselCode: vessel, planId, templateId: tid,
+    vesselCode: vessel, planId, templateId: tid, counterId: cid,
     lastDoneHrs: document.getElementById('plan-last-hrs').value || 0,
     lastDoneDate: document.getElementById('plan-last-date').value,
     operator: currentAdmin?.accountId || currentUser?.accountId || ''
@@ -4727,9 +4750,11 @@ async function openExecuteMaint(planId, templateId, vessel) {
   _execVessel = vessel;
   const tpl = (_pmsTemplates||[]).find(t => t['template_id'] === templateId) || {};
   const plan = (_adminPmsData||_crewPmsData||[]).find(p => p['plan_id'] === planId) || {};
+  const counter = (_pmsPlanCounters||[]).find(c => c['counter_id'] === plan['counter_id']);
+  const curHrs = counter ? parseFloat(counter['last_value']||0) : 0;
   document.getElementById('exec-maint-info').textContent =
-    (tpl['name']||'') + '　上次保養：' + (plan['last_done_hrs']||0) + ' hrs　目前時數：' + _currentHours.toLocaleString() + ' hrs';
-  document.getElementById('exec-hrs').value = _currentHours || '';
+    (tpl['name']||'') + '　對應計數器：' + (counter?counter['name']:'未綁定') + '　上次保養：' + (plan['last_done_hrs']||0) + ' hrs　目前時數：' + curHrs.toLocaleString() + ' hrs';
+  document.getElementById('exec-hrs').value = curHrs || '';
   document.getElementById('exec-operator').value = currentAdmin?.accountId || currentUser?.nameZh || '';
   document.getElementById('exec-note').value = '';
   document.getElementById('exec-err').textContent = '';
