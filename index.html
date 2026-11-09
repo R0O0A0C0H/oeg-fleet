@@ -1030,6 +1030,11 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
         <label class="form-label">初始庫存數量</label>
         <input type="number" id="stock-init-qty" min="0" placeholder="0">
       </div>
+      <div class="form-group" id="stock-count-group" style="display:none">
+        <label class="form-label">目前數量（盤點）</label>
+        <input type="number" id="stock-count-qty" min="0" step="any">
+        <div class="hint" id="stock-count-hint">與系統數量不同時，會記一筆「盤點調整」到異動紀錄</div>
+      </div>
       <div class="form-group" id="stock-min-qty-group">
         <label class="form-label">安全庫存門檻 <i class="ti ti-lock" style="font-size:11px;color:var(--text3)"></i></label>
         <input type="number" id="stock-min-qty" min="0" placeholder="5">
@@ -1041,6 +1046,31 @@ textarea.inline-prog{width:200px!important;min-height:40px!important;font-size:1
     <div class="modal-actions">
       <button class="btn btn-sm" onclick="closeModal('modal-stock-item')">取消</button>
       <button class="btn btn-sm btn-primary" onclick="submitStockItem()"><i class="ti ti-check"></i>儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 船長授權刪除庫存品項 Modal -->
+<div class="modal-overlay" id="modal-captain-delete">
+  <div class="modal" style="width:400px;max-width:96vw">
+    <div class="modal-title"><i class="ti ti-lock" style="color:var(--danger)"></i> 刪除庫存品項（需船長授權）</div>
+    <div id="cap-del-info" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:6px;padding:10px 12px;font-size:12px;margin-bottom:12px"></div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label class="form-label">船長帳號 <span class="req">*</span></label>
+      <input type="text" id="cap-del-id" autocomplete="off">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label class="form-label">船長登入密碼 <span class="req">*</span></label>
+      <input type="password" id="cap-del-pw" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitCaptainDelete()">
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label class="form-label">刪除原因</label>
+      <input type="text" id="cap-del-reason" placeholder="選填，會記錄在異動紀錄">
+    </div>
+    <div class="err-msg" id="cap-del-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal('modal-captain-delete')">取消</button>
+      <button class="btn btn-sm btn-danger" onclick="submitCaptainDelete()"><i class="ti ti-trash"></i>確認刪除</button>
     </div>
   </div>
 </div>
@@ -4295,7 +4325,8 @@ function renderCrewStock() {
       '<td><div style="display:flex;gap:4px;flex-wrap:wrap">' +
         '<button class="btn btn-xs btn-success" onclick="openCrewStockIn(\''+sid+'\',decodeURIComponent(\''+snm+'\'),'+qty+')"><i class="ti ti-arrow-bar-down"></i>入庫</button>' +
         '<button class="btn btn-xs btn-danger" '+(isOut?'disabled style="opacity:.4"':'onclick="openCrewStockOut(\''+sid+'\',decodeURIComponent(\''+snm+'\'),'+qty+')"')+'><i class="ti ti-arrow-bar-up"></i>出庫</button>' +
-        '<button class="btn btn-xs" onclick="openCrewEditStock(\''+sid+'\')"><i class="ti ti-edit"></i></button>' +
+        '<button class="btn btn-xs" onclick="openCrewEditStock(\''+sid+'\')"><i class="ti ti-edit"></i>修改</button>' +
+        '<button class="btn btn-xs btn-danger" onclick="openCaptainDelete(\''+sid+'\')"><i class="ti ti-trash"></i>刪除</button>' +
       '</div></td>' +
       '</tr>';
   });
@@ -4305,6 +4336,7 @@ function renderCrewStock() {
 
 // ── Modal 操作 ────────────────────────────────────────────────
 function openAddStockModal() {
+  document.getElementById('stock-count-group').style.display = 'none';
   _stockEditItemId = '';
   document.getElementById('stock-modal-title').textContent = '新增庫存品項';
   document.getElementById('stock-item-id').value = '';
@@ -4323,6 +4355,7 @@ function openAddStockModal() {
 }
 
 function openEditStock(itemId) {
+  document.getElementById('stock-count-group').style.display = 'none';
   const d = (_adminStockData || []).find(i => i['item_id'] === itemId);
   if (!d) return;
   _stockEditItemId = itemId;
@@ -4365,17 +4398,36 @@ async function submitStockItem() {
   const operator = currentAdmin?.accountId || currentUser?.accountId || '';
 
   if (_stockEditItemId) {
-    showLoading('更新中...');
-    const res = await api('updateStockItem', {
+    const payload = {
       vesselCode: vessel, itemId: _stockEditItemId,
       itemName, partNo: document.getElementById('stock-part-no').value.trim(),
       category, unit: document.getElementById('stock-unit').value.trim(),
       location, remark: document.getElementById('stock-remark').value.trim(),
-      qtyMin: document.getElementById('stock-min-qty').value || 0,
-    });
+    };
+    // 船員不能改安全庫存：不送 qtyMin，避免被清成 0
+    if (!isCrew) payload.qtyMin = document.getElementById('stock-min-qty').value || 0;
+
+    let countQty = null;
+    if (isCrew) {
+      const cq = document.getElementById('stock-count-qty');
+      if (cq.value.trim() === '' || isNaN(parseFloat(cq.value)) || parseFloat(cq.value) < 0) { errEl.textContent = '目前數量需為 0 以上的數字'; return; }
+      if (parseFloat(cq.value) !== parseFloat(cq.dataset.orig)) {
+        countQty = parseFloat(cq.value);
+        if (!confirm('目前數量將由 ' + cq.dataset.orig + ' 調整為 ' + countQty + '，確定？')) return;
+      }
+    }
+
+    showLoading('更新中...');
+    const res = await api('updateStockItem', payload);
+    let res2 = { success: true };
+    if (res.success && countQty !== null) {
+      res2 = await api('stockCount', { vesselCode: vessel, itemId: _stockEditItemId, newQty: countQty, operator, note: '船員盤點' });
+    }
     hideLoading();
-    if (res.success) { closeModal('modal-stock-item'); loadAdminStock(); }
-    else errEl.textContent = res.message || '更新失敗';
+    if (!res.success) { errEl.textContent = res.message || '更新失敗'; return; }
+    if (!res2.success) { errEl.textContent = '資料已更新，但盤點數量失敗：' + (res2.message || ''); return; }
+    closeModal('modal-stock-item');
+    if (isCrew) loadCrewStock(); else loadAdminStock();
   } else {
     showLoading('新增中...');
     const res = await api('addStockItem', {
@@ -4388,7 +4440,7 @@ async function submitStockItem() {
       operator,
     });
     hideLoading();
-    if (res.success) { closeModal('modal-stock-item'); loadAdminStock(); }
+    if (res.success) { closeModal('modal-stock-item'); if (isCrew) loadCrewStock(); else loadAdminStock(); }
     else errEl.textContent = res.message || '新增失敗';
   }
 }
@@ -4458,6 +4510,7 @@ async function submitStockOut() {
 
 // ── 船員端庫存操作 ────────────────────────────────────────────
 function openCrewAddStockModal() {
+  document.getElementById('stock-count-group').style.display = 'none';
   _stockEditItemId = '';
   document.getElementById('stock-modal-title').textContent = '新增庫存品項';
   document.getElementById('stock-item-id').value = '';
@@ -4476,6 +4529,47 @@ function openCrewAddStockModal() {
   // 標記為船員模式
   document.getElementById('stock-item-id').dataset.mode = 'crew';
   openModal('modal-stock-item');
+}
+
+// ── 船長授權刪除 ──────────────────────────────────────────
+let _capDelItemId = '';
+
+function openCaptainDelete(itemId) {
+  const d = (_crewStockData || []).find(i => i['item_id'] === itemId);
+  if (!d) return;
+  _capDelItemId = itemId;
+  const qty = parseFloat(d['qty_current'] || 0);
+  document.getElementById('cap-del-info').innerHTML =
+    '<div style="font-weight:500;margin-bottom:4px">' + escHtml(d['item_name']) +
+    (d['part_no'] ? ' <span class="text-dim" style="font-family:monospace">(' + escHtml(d['part_no']) + ')</span>' : '') + '</div>' +
+    '<div>目前庫存：<b style="color:' + (qty > 0 ? 'var(--warning)' : 'inherit') + '">' + qty + ' ' + escHtml(d['unit'] || '') + '</b>' +
+    (qty > 0 ? '　<span style="color:var(--warning)">刪除後此數量一併清除</span>' : '') + '</div>';
+  // 船長本人操作時預帶自己的帳號
+  document.getElementById('cap-del-id').value = currentUser?.rank === '船長' ? currentUser.accountId : '';
+  document.getElementById('cap-del-pw').value = '';
+  document.getElementById('cap-del-reason').value = '';
+  document.getElementById('cap-del-err').textContent = '';
+  openModal('modal-captain-delete');
+  setTimeout(() => document.getElementById(currentUser?.rank === '船長' ? 'cap-del-pw' : 'cap-del-id').focus(), 100);
+}
+
+async function submitCaptainDelete() {
+  const errEl = document.getElementById('cap-del-err');
+  const captainId = document.getElementById('cap-del-id').value.trim();
+  const captainPw = document.getElementById('cap-del-pw').value;
+  if (!captainId || !captainPw) { errEl.textContent = '請輸入船長帳號與密碼'; return; }
+  showLoading('驗證並刪除中...');
+  const res = await api('deleteStockItemByCaptain', {
+    vesselCode: currentUser.vesselCode, itemId: _capDelItemId,
+    captainId, captainPw,
+    reason: document.getElementById('cap-del-reason').value.trim(),
+    operator: currentUser.accountId
+  });
+  hideLoading();
+  document.getElementById('cap-del-pw').value = '';
+  if (!res.success) { errEl.textContent = res.message || '刪除失敗'; return; }
+  closeModal('modal-captain-delete');
+  loadCrewStock();
 }
 
 function openCrewEditStock(itemId) {
@@ -4499,6 +4593,10 @@ function openCrewEditStock(itemId) {
   else { locSel.value = 'other'; document.getElementById('stock-loc-custom').style.display = 'block'; document.getElementById('stock-loc-custom').value = loc; }
   document.getElementById('stock-init-qty-group').style.display = 'none';
   document.getElementById('stock-min-qty-group').style.display = 'none'; // 船員不能改安全庫存
+  document.getElementById('stock-count-group').style.display = '';
+  const cq = document.getElementById('stock-count-qty');
+  cq.value = parseFloat(d['qty_current'] || 0);
+  cq.dataset.orig = cq.value;
   document.getElementById('stock-item-err').textContent = '';
   openModal('modal-stock-item');
 }
